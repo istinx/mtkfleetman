@@ -80,6 +80,7 @@ button.primary:hover { box-shadow: 0 3px 14px rgba(91,158,245,0.4); }
 .node-box .node-sub { color: var(--text-muted); font-size: 10px; margin-top: 2px; font-family: var(--font-mono); }
 
 .login-screen {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { setLanguage } from "./i18n";
 import {
   login,
   listRouters,
@@ -19,7 +21,30 @@ import RouterDetail, { StatusBadge } from "./RouterDetail";
 import NetworkMap from "./NetworkMap";
 import LoginArt from "./LoginArt";
 
+const LANGUAGES: { code: "ru" | "en" | "zh"; label: string }[] = [
+  { code: "ru", label: "Русский" },
+  { code: "en", label: "English" },
+  { code: "zh", label: "中文" },
+];
+
+function LanguageSwitcher() {
+  const { i18n } = useTranslation();
+  return (
+    <select
+      value={i18n.language}
+      onChange={(e) => setLanguage(e.target.value as "ru" | "en" | "zh")}
+      aria-label="Language"
+      style={{ width: "auto" }}
+    >
+      {LANGUAGES.map((l) => (
+        <option key={l.code} value={l.code}>{l.label}</option>
+      ))}
+    </select>
+  );
+}
+
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +58,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
       await login(username, password);
       onLoggedIn();
     } catch {
-      setError("Неверный логин или пароль.");
+      setError(t("login.error"));
     } finally {
       setBusy(false);
     }
@@ -41,14 +66,15 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
   return (
     <div className="login-screen">
+      <div style={{ position: "absolute", top: 16, right: 16 }}><LanguageSwitcher /></div>
       <div className="login-card">
         <div className="login-art"><LoginArt /></div>
         <form onSubmit={submit}>
           <h1>MikroTik Fleet Manager</h1>
-          <p>Войдите, чтобы увидеть парк роутеров</p>
-          <input type="text" placeholder="логин" value={username} onChange={(e) => setUsername(e.target.value)} required />
-          <input type="password" placeholder="пароль" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <button className="primary" type="submit" disabled={busy}>{busy ? "Входим…" : "Войти"}</button>
+          <p>{t("login.subtitle")}</p>
+          <input type="text" placeholder={t("login.username")} value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <input type="password" placeholder={t("login.password")} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <button className="primary" type="submit" disabled={busy}>{busy ? t("login.submitting") : t("login.submit")}</button>
           {error && <div className="error-text">{error}</div>}
         </form>
       </div>
@@ -534,6 +560,7 @@ function DocsPanel({ onClose }: { onClose: () => void }) {
 }
 
 function Dashboard() {
+  const { t } = useTranslation();
   const [routers, setRouters] = useState<RouterSummary[]>([]);
   const [selected, setSelected] = useState<RouterSummary | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -561,7 +588,7 @@ function Dashboard() {
       // (e.g. a missing migration) used to leave the list stuck on
       // "Загрузка…" forever with zero feedback, including right after a
       // router was actually added successfully.
-      setLoadError("Не удалось загрузить список роутеров. Проверьте логи api (docker compose logs api) — часто это несделанная миграция БД.");
+      setLoadError(t("fleet.loadError"));
     } finally {
       setLoading(false);
     }
@@ -590,16 +617,16 @@ function Dashboard() {
             onClick={() => setViewMode("fleet")}
             style={viewMode === "fleet" ? { borderColor: "var(--blue)" } : undefined}
           >
-            Список
+            {t("topbar.list")}
           </button>
           <button
             onClick={() => setViewMode("map")}
             style={viewMode === "map" ? { borderColor: "var(--blue)" } : undefined}
           >
-            Карта сети
+            {t("topbar.map")}
           </button>
         <div style={{ position: "relative" }}>
-          <button onClick={() => setMenuOpen((v) => !v)}>☰ Меню</button>
+          <button onClick={() => setMenuOpen((v) => !v)}>{t("topbar.menu")}</button>
           {menuOpen && (
             <>
               <div
@@ -619,16 +646,20 @@ function Dashboard() {
                     {me.username} · {me.role}
                   </div>
                 )}
-                <button style={{ textAlign: "left" }} onClick={() => { setShowAdd(true); setMenuOpen(false); }}>+ Добавить роутер</button>
-                <button style={{ textAlign: "left" }} onClick={() => { setShowDocs(true); setMenuOpen(false); }}>Документация</button>
-                <button style={{ textAlign: "left" }} onClick={() => { setShowPasswordModal(true); setMenuOpen(false); }}>Сменить пароль</button>
+                <button style={{ textAlign: "left" }} onClick={() => { setShowAdd(true); setMenuOpen(false); }}>{t("menu.addRouter")}</button>
+                <button style={{ textAlign: "left" }} onClick={() => { setShowDocs(true); setMenuOpen(false); }}>{t("menu.docs")}</button>
+                <button style={{ textAlign: "left" }} onClick={() => { setShowPasswordModal(true); setMenuOpen(false); }}>{t("menu.changePassword")}</button>
                 {me?.role === "admin" && (
-                  <button style={{ textAlign: "left" }} onClick={() => { setShowUsers(true); setMenuOpen(false); }}>Пользователи</button>
+                  <button style={{ textAlign: "left" }} onClick={() => { setShowUsers(true); setMenuOpen(false); }}>{t("menu.users")}</button>
                 )}
                 {me?.role === "admin" && (
-                  <button style={{ textAlign: "left" }} onClick={() => { setShowLogs(true); setMenuOpen(false); }}>Логи</button>
+                  <button style={{ textAlign: "left" }} onClick={() => { setShowLogs(true); setMenuOpen(false); }}>{t("menu.logs")}</button>
                 )}
-                <button style={{ textAlign: "left", borderColor: "var(--red)", color: "var(--red)" }} onClick={logout}>Выйти</button>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 10px", gap: 8 }}>
+                  <span className="muted" style={{ fontSize: 12 }}>{t("menu.language")}</span>
+                  <LanguageSwitcher />
+                </div>
+                <button style={{ textAlign: "left", borderColor: "var(--red)", color: "var(--red)" }} onClick={logout}>{t("menu.logout")}</button>
               </div>
             </>
           )}
@@ -636,9 +667,9 @@ function Dashboard() {
         </div>
       </div>
       <div className="main">
-        {loading && <p className="muted">Загрузка…</p>}
+        {loading && <p className="muted">{t("fleet.loading")}</p>}
         {loadError && <div className="error-text" style={{ marginBottom: 16 }}>{loadError}</div>}
-        {!loading && !loadError && !routers.length && <p className="muted">Роутеров пока нет — добавьте первый.</p>}
+        {!loading && !loadError && !routers.length && <p className="muted">{t("fleet.empty")}</p>}
         {viewMode === "map" && !loading && !!routers.length && (
           <NetworkMap routers={routers} onSelectRouter={setSelected} />
         )}

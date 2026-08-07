@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, ReactNode, Fragment } from "react";
+import { useTranslation } from "react-i18next";
 import Chart from "chart.js/auto";
 import TerminalTab from "./TerminalTab";
 import TopologyTab from "./TopologyTab";
@@ -57,13 +58,25 @@ const TABS = [
 
 type TabId = (typeof TABS)[number][0];
 
+const TAB_LABEL_KEY: Record<TabId, string> = {
+  mon: "tabs.mon",
+  "clients-wifi": "tabs.wifiTop",
+  "clients-eth": "tabs.ethTop",
+  fw: "tabs.fw",
+  dhcp: "tabs.dhcp",
+  wifi: "tabs.wifi",
+  dest: "tabs.dest",
+  term: "tabs.term",
+  topo: "tabs.topo",
+  cfg: "tabs.cfg",
+};
+
 function ErrorNote({ msg }: { msg: string }) {
   return <p className="muted">{msg}</p>;
 }
 
-const STATUS_LABEL: Record<string, string> = { up: "up", warn: "warn", down: "down", unknown: "unknown" };
-
 function StatusReasonModal({ routerId, status, onClose }: { routerId: string; status: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const [data, setData] = useState<RouterStatusReason | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +91,7 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 480 }}>
-        <h2>Почему статус «{STATUS_LABEL[status] ?? status}»?</h2>
+        <h2>Почему статус «{t(`status.${status}`, status)}»?</h2>
         {error && <ErrorNote msg={error} />}
         {!data && !error && <p className="muted">Загрузка…</p>}
 
@@ -89,7 +102,7 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
                 Не в состоянии up {data.downInterfaces.length === 1 ? "наблюдаемый интерфейс" : "наблюдаемые интерфейсы"}
                 {" "}(список наблюдаемых — во вкладке «Мониторинг»):
               </p>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
+              <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 320, overflowY: "auto" }}>
                 {data.downInterfaces.map((i) => (
                   <li key={i.interface_name} className="mono" style={{ fontSize: 13, marginBottom: 4 }}>
                     {i.interface_name}{" "}
@@ -111,7 +124,7 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
               <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
                 Роутер не ответил при последнем опросе. Последние связанные записи из лога воркера:
               </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
                 {data.events.map((e, i) => (
                   <div key={i}>
                     <div className="muted mono" style={{ fontSize: 11 }}>{new Date(e.created_at).toLocaleString()}</div>
@@ -140,9 +153,10 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
 // router detail header. warn/down are clickable: they fetch and explain
 // the actual reason instead of leaving the user to guess from a color.
 export function StatusBadge({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
-  if (!router.monitoring_enabled) return <span className="badge unknown">мониторинг выкл</span>;
+  if (!router.monitoring_enabled) return <span className="badge unknown">{t("status.monitoringOff")}</span>;
 
   const clickable = router.status === "warn" || router.status === "down";
   return (
@@ -160,7 +174,7 @@ export function StatusBadge({ router }: { router: RouterSummary }) {
             : undefined
         }
       >
-        {router.status}
+        {t(`status.${router.status}`, router.status)}
       </span>
       {open && <StatusReasonModal routerId={router.id} status={router.status} onClose={() => setOpen(false)} />}
     </>
@@ -1828,6 +1842,7 @@ function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; on
 }
 
 export default function RouterDetail({ router, onDeleted, onUpdated }: { router: RouterSummary; onDeleted: () => void; onUpdated: () => void }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<TabId>("mon");
   const [terminalActivated, setTerminalActivated] = useState(false);
 
@@ -1847,8 +1862,8 @@ export default function RouterDetail({ router, onDeleted, onUpdated }: { router:
         </div>
       </div>
       <div className="tabs">
-        {TABS.map(([id, label]) => (
-          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>
+        {TABS.map(([id]) => (
+          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{t(TAB_LABEL_KEY[id])}</button>
         ))}
       </div>
       {tab === "mon" && <MonitoringTab router={router} />}
