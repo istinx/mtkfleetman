@@ -83,6 +83,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 }
 
 function AddRouterModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ name: "", host: "", port: 443, username: "admin", password: "", model: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +97,7 @@ function AddRouterModal({ onClose, onCreated }: { onClose: () => void; onCreated
       onCreated();
       onClose();
     } catch {
-      setError("Не удалось добавить роутер. Проверьте права доступа.");
+      setError(t("addRouter.error"));
     } finally {
       setBusy(false);
     }
@@ -105,23 +106,23 @@ function AddRouterModal({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>Добавить роутер</h2>
-        <label>Имя</label>
+        <h2>{t("addRouter.title")}</h2>
+        <label>{t("editRouter.name")}</label>
         <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <label>Хост / IP</label>
+        <label>{t("editRouter.host")}</label>
         <input required value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} />
-        <label>Порт (REST API)</label>
+        <label>{t("editRouter.port")}</label>
         <input type="number" value={form.port} onChange={(e) => setForm({ ...form, port: Number(e.target.value) })} />
-        <label>Пользователь API</label>
+        <label>{t("editRouter.apiUser")}</label>
         <input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-        <label>Пароль</label>
+        <label>{t("addRouter.password")}</label>
         <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        <label>Модель (опционально)</label>
+        <label>{t("editRouter.model")}</label>
         <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
         {error && <div className="error-text">{error}</div>}
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>Отмена</button>
-          <button className="primary" type="submit" disabled={busy}>{busy ? "Добавляем…" : "Добавить"}</button>
+          <button type="button" onClick={onClose}>{t("common.cancel")}</button>
+          <button className="primary" type="submit" disabled={busy}>{busy ? t("addRouter.adding") : t("addRouter.add")}</button>
         </div>
       </form>
     </div>
@@ -129,6 +130,7 @@ function AddRouterModal({ onClose, onCreated }: { onClose: () => void; onCreated
 }
 
 function ChangeMyPasswordModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -139,14 +141,14 @@ function ChangeMyPasswordModal({ onClose }: { onClose: () => void }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (newPassword !== confirm) return setError("Новый пароль и подтверждение не совпадают.");
-    if (newPassword.length < 8) return setError("Новый пароль должен быть не короче 8 символов.");
+    if (newPassword !== confirm) return setError(t("changePassword.mismatch"));
+    if (newPassword.length < 8) return setError(t("changePassword.tooShort"));
     setBusy(true);
     try {
       await changeMyPassword(currentPassword, newPassword);
       setDone(true);
     } catch (err: any) {
-      setError(err?.response?.data?.error === "Current password is incorrect" ? "Текущий пароль указан неверно." : "Не удалось сменить пароль.");
+      setError(err?.response?.data?.error === "Current password is incorrect" ? t("changePassword.wrongCurrent") : t("changePassword.genericError"));
     } finally {
       setBusy(false);
     }
@@ -155,26 +157,26 @@ function ChangeMyPasswordModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>Сменить пароль</h2>
+        <h2>{t("changePassword.title")}</h2>
         {done ? (
           <>
-            <p className="muted">Пароль обновлён.</p>
+            <p className="muted">{t("changePassword.done")}</p>
             <div className="modal-actions">
-              <button type="button" className="primary" onClick={onClose}>Готово</button>
+              <button type="button" className="primary" onClick={onClose}>{t("changePassword.finish")}</button>
             </div>
           </>
         ) : (
           <>
-            <label>Текущий пароль</label>
+            <label>{t("changePassword.current")}</label>
             <input required type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
-            <label>Новый пароль</label>
+            <label>{t("changePassword.newPass")}</label>
             <input required type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-            <label>Повторите новый пароль</label>
+            <label>{t("changePassword.repeatNew")}</label>
             <input required type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
             {error && <div className="error-text">{error}</div>}
             <div className="modal-actions">
-              <button type="button" onClick={onClose}>Отмена</button>
-              <button className="primary" type="submit" disabled={busy}>{busy ? "Сохраняем…" : "Сохранить"}</button>
+              <button type="button" onClick={onClose}>{t("common.cancel")}</button>
+              <button className="primary" type="submit" disabled={busy}>{busy ? t("common.saving") : t("common.save")}</button>
             </div>
           </>
         )}
@@ -184,6 +186,7 @@ function ChangeMyPasswordModal({ onClose }: { onClose: () => void }) {
 }
 
 function AddUserForm({ onCreated }: { onCreated: () => void }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ username: "", password: "", role: "viewer" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +200,7 @@ function AddUserForm({ onCreated }: { onCreated: () => void }) {
       setForm({ username: "", password: "", role: "viewer" });
       onCreated();
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Не удалось добавить пользователя.");
+      setError(err?.response?.data?.error ?? t("users.addError"));
     } finally {
       setBusy(false);
     }
@@ -206,28 +209,29 @@ function AddUserForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form onSubmit={submit} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 16 }}>
       <div>
-        <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Логин</label>
+        <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{t("users.login")}</label>
         <input required type="text" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
       </div>
       <div>
-        <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Пароль</label>
+        <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{t("users.password")}</label>
         <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
       </div>
       <div>
-        <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Роль</label>
+        <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{t("users.role")}</label>
         <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-          <option value="viewer">viewer — только просмотр</option>
-          <option value="operator">operator — просмотр + изменения</option>
-          <option value="admin">admin — полный доступ</option>
+          <option value="viewer">{t("users.roleViewer")}</option>
+          <option value="operator">{t("users.roleOperator")}</option>
+          <option value="admin">{t("users.roleAdmin")}</option>
         </select>
       </div>
-      <button className="primary" type="submit" disabled={busy}>{busy ? "Добавляем…" : "+ Добавить"}</button>
+      <button className="primary" type="submit" disabled={busy}>{busy ? t("users.adding") : t("users.add")}</button>
       {error && <div className="error-text" style={{ width: "100%" }}>{error}</div>}
     </form>
   );
 }
 
 function UserRow({ user, onChanged }: { user: TenantUser; onChanged: () => void }) {
+  const { t } = useTranslation();
   const [role, setRole] = useState(user.role);
   const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -238,38 +242,38 @@ function UserRow({ user, onChanged }: { user: TenantUser; onChanged: () => void 
     setMsg(null);
     try {
       await updateUser(user.id, { role });
-      setMsg("Роль обновлена.");
+      setMsg(t("users.roleUpdated"));
       onChanged();
     } catch {
-      setMsg("Не удалось обновить роль.");
+      setMsg(t("users.roleUpdateError"));
     } finally {
       setBusy(false);
     }
   }
 
   async function resetPassword() {
-    if (newPassword.length < 8) return setMsg("Пароль должен быть не короче 8 символов.");
+    if (newPassword.length < 8) return setMsg(t("users.passwordTooShort"));
     setBusy(true);
     setMsg(null);
     try {
       await updateUser(user.id, { password: newPassword });
       setNewPassword("");
-      setMsg("Пароль сброшен.");
+      setMsg(t("users.passwordReset"));
     } catch {
-      setMsg("Не удалось сбросить пароль.");
+      setMsg(t("users.passwordResetError"));
     } finally {
       setBusy(false);
     }
   }
 
   async function remove() {
-    if (!confirm(`Удалить пользователя ${user.username}?`)) return;
+    if (!confirm(t("users.deleteConfirm", { name: user.username }))) return;
     setBusy(true);
     try {
       await deleteUser(user.id);
       onChanged();
     } catch {
-      setMsg("Не удалось удалить (возможно, это ваш собственный аккаунт).");
+      setMsg(t("users.deleteError"));
       setBusy(false);
     }
   }
@@ -285,16 +289,16 @@ function UserRow({ user, onChanged }: { user: TenantUser; onChanged: () => void 
         </select>
       </td>
       <td>
-        <button onClick={saveRole} disabled={busy || role === user.role}>Сохранить роль</button>
+        <button onClick={saveRole} disabled={busy || role === user.role}>{t("users.saveRole")}</button>
       </td>
       <td>
         <div style={{ display: "flex", gap: 6 }}>
-          <input type="password" placeholder="новый пароль" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: 130 }} />
-          <button onClick={resetPassword} disabled={busy || !newPassword}>Сбросить</button>
+          <input type="password" placeholder={t("users.newPasswordPlaceholder")} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: 130 }} />
+          <button onClick={resetPassword} disabled={busy || !newPassword}>{t("users.reset")}</button>
         </div>
       </td>
       <td>
-        <button onClick={remove} disabled={busy} style={{ borderColor: "var(--red)", color: "var(--red)" }}>Удалить</button>
+        <button onClick={remove} disabled={busy} style={{ borderColor: "var(--red)", color: "var(--red)" }}>{t("users.delete")}</button>
       </td>
       <td className="muted" style={{ fontSize: 11 }}>{msg}</td>
     </tr>
@@ -302,6 +306,7 @@ function UserRow({ user, onChanged }: { user: TenantUser; onChanged: () => void 
 }
 
 function UsersPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<TenantUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -309,30 +314,30 @@ function UsersPanel({ onClose }: { onClose: () => void }) {
     try {
       setUsers(await listUsers());
     } catch {
-      setError("Не удалось загрузить список пользователей.");
+      setError(t("users.loadError"));
     }
   }
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 760 }}>
-        <h2>Пользователи</h2>
+        <h2>{t("users.title")}</h2>
         <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 16 }}>
-          Пользователи видят те же роутеры и графики, что и вы — доступ ограничен только ролью (viewer — просмотр,
-          operator — просмотр и изменения, admin — полный доступ, включая управление пользователями).
+          {t("users.description")}
         </p>
         <AddUserForm onCreated={refresh} />
         {error && <div className="error-text">{error}</div>}
-        {!users && !error && <p className="muted">Загрузка…</p>}
+        {!users && !error && <p className="muted">{t("common.loading")}</p>}
         {users && (
           <div className="table-scroll">
             <table>
               <thead>
-                <tr><th>Логин</th><th>Роль</th><th></th><th>Пароль</th><th></th><th></th></tr>
+                <tr><th>{t("users.login")}</th><th>{t("users.role")}</th><th></th><th>{t("users.password")}</th><th></th><th></th></tr>
               </thead>
               <tbody>
                 {users.map((u) => (
@@ -343,7 +348,7 @@ function UsersPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <div className="modal-actions">
-          <button className="primary" onClick={onClose}>Закрыть</button>
+          <button className="primary" onClick={onClose}>{t("common.close")}</button>
         </div>
       </div>
     </div>
@@ -351,6 +356,7 @@ function UsersPanel({ onClose }: { onClose: () => void }) {
 }
 
 function LogsPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<LogEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [service, setService] = useState("");
@@ -363,7 +369,7 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
     try {
       setLogs(await getLogs({ service: service || undefined, level: level || undefined, limit: 300 }));
     } catch {
-      setError("Не удалось загрузить логи.");
+      setError(t("logs.loadError"));
     }
   }
 
@@ -397,7 +403,7 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
       // Clipboard API needs a secure context — silently unavailable on
       // plain http:// (this app is deliberately deployed that way, see
       // DEPLOY.md). Fall back to a file download instead of failing quietly.
-      setCopyError("Буфер обмена недоступен (обычно из-за работы по HTTP без HTTPS) — используйте «Скачать .txt».");
+      setCopyError(t("logs.clipboardUnavailable"));
     }
   }
 
@@ -416,40 +422,38 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 860 }}>
-        <h2>Логи</h2>
+        <h2>{t("logs.title")}</h2>
         <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 14 }}>
-          Ошибки и события бэкенда (api/worker) — в основном то, что происходит при опросе роутеров. Если что-то не
-          работает, скачайте .txt и пришлите для разбора (копирование в буфер требует HTTPS — на обычном http:// не
-          сработает, отсюда и кнопка «Скачать»).
+          {t("logs.description")}
         </p>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <select value={service} onChange={(e) => setService(e.target.value)}>
-            <option value="">Все сервисы</option>
+            <option value="">{t("logs.allServices")}</option>
             <option value="api">api</option>
             <option value="worker">worker</option>
           </select>
           <select value={level} onChange={(e) => setLevel(e.target.value)}>
-            <option value="">Все уровни</option>
+            <option value="">{t("logs.allLevels")}</option>
             <option value="error">error</option>
             <option value="warn">warn</option>
             <option value="info">info</option>
           </select>
-          <button onClick={refresh}>Обновить</button>
+          <button onClick={refresh}>{t("logs.refresh")}</button>
           <button onClick={() => setAutoRefresh((v) => !v)} style={autoRefresh ? { borderColor: "var(--blue)" } : undefined}>
-            Автообновление: {autoRefresh ? "вкл" : "выкл"}
+            {t("common.autoRefresh")} {autoRefresh ? t("logs.autoRefreshOn") : t("logs.autoRefreshOff")}
           </button>
-          <button onClick={copyAll}>{copied ? "Скопировано!" : "Скопировать всё"}</button>
-          <button className="primary" onClick={downloadAll}>Скачать .txt</button>
+          <button onClick={copyAll}>{copied ? t("logs.copied") : t("logs.copyAll")}</button>
+          <button className="primary" onClick={downloadAll}>{t("logs.downloadTxt")}</button>
         </div>
         {copyError && <p className="muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 10 }}>{copyError}</p>}
         {error && <div className="error-text">{error}</div>}
-        {!logs && !error && <p className="muted">Загрузка…</p>}
-        {logs && !logs.length && <p className="muted">Логов пока нет.</p>}
+        {!logs && !error && <p className="muted">{t("common.loading")}</p>}
+        {logs && !logs.length && <p className="muted">{t("logs.none")}</p>}
         {logs && !!logs.length && (
           <div className="table-scroll" style={{ maxHeight: "50vh", overflowY: "auto" }}>
             <table>
               <thead>
-                <tr><th>Время</th><th>Сервис</th><th>Уровень</th><th>Сообщение</th></tr>
+                <tr><th>{t("logs.colTime")}</th><th>{t("logs.colService")}</th><th>{t("logs.colLevel")}</th><th>{t("logs.colMessage")}</th></tr>
               </thead>
               <tbody>
                 {logs.map((l) => (
@@ -472,7 +476,7 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <div className="modal-actions">
-          <button className="primary" onClick={onClose}>Закрыть</button>
+          <button className="primary" onClick={onClose}>{t("common.close")}</button>
         </div>
       </div>
     </div>
@@ -550,6 +554,38 @@ function DocsPanel({ onClose }: { onClose: () => void }) {
             <li><code>Session closed</code> при больших выгрузках (например, полная BGP-таблица) — сам RouterOS не справляется с сериализацией; в этом приложении такие запросы уже отфильтрованы/убраны</li>
             <li>Роутер периодически показывает <code>down</code>, хотя доступен — проверьте вкладку «Логи» (☰ меню, только admin), там видно, какой конкретно запрос не успевает</li>
           </ul>
+
+          <h3 style={{ fontSize: 14 }}>9. Диагностика: что-то не работает в самом приложении</h3>
+          <p className="muted">
+            Если раздел молча не грузится, показывает ошибку или пустой список — прежде чем писать в поддержку,
+            проверьте сами по шагам:
+          </p>
+          <ol className="muted" style={{ paddingLeft: 18 }}>
+            <li>
+              <strong>Логи бэкенда через SSH на сервере:</strong>{" "}
+              <code className="mono">docker compose logs api --tail 100</code>. Каждый HTTP-запрос пишется двумя
+              строками — <code>"incoming request"</code> и <code>"request completed"</code> с одинаковым{" "}
+              <code>reqId</code> и полем <code>res.statusCode</code>. Если после «пересборки»/обновления какой-то
+              раздел начал стабильно падать с <code>500</code> и текстом вроде{" "}
+              <code>column "..." does not exist</code> — почти всегда это несделанная миграция БД (см. README,
+              раздел про <code>docker compose exec postgres psql ... &lt; backend/src/db/migrations/...</code>).
+            </li>
+            <li>
+              <strong>DevTools в браузере (F12) → вкладка Network/Сеть:</strong> найдите нужный запрос (можно
+              отфильтровать по части URL через поле поиска), откройте его и посмотрите вкладку «Ответ»/Response —
+              это самый быстрый способ увидеть, что реально ответил сервер, если на странице просто написано
+              «Не удалось загрузить данные» без подробностей.
+            </li>
+            <li>
+              <strong>Пустой список — не всегда ошибка.</strong> Например, «Топ по блокировкам» на вкладке Firewall
+              честно показывает <code>{"{"}"entries":[]{"}"}</code>, пока на роутере не включён{" "}
+              <code>log=yes</code> на нужных правилах (см. шаг 8 выше) — это не баг, а отсутствие исходных данных.
+            </li>
+            <li>
+              <strong>Жёсткое обновление страницы</strong> (Ctrl+F5 / Cmd+Shift+R) — сбрасывает закешированный
+              старый JS-бандл в браузере, полезно сразу после обновления приложения на сервере.
+            </li>
+          </ol>
         </div>
         <div className="modal-actions">
           <button className="primary" onClick={onClose}>Закрыть</button>

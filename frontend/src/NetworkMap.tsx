@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ReactFlow, {
   Background,
   Controls,
@@ -81,6 +82,7 @@ export default function NetworkMap({
   routers: RouterSummary[];
   onSelectRouter: (r: RouterSummary) => void;
 }) {
+  const { t } = useTranslation();
   const [map, setMap] = useState<NetworkMapData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoNode, setInfoNode] = useState<NetworkMapNode | null>(null);
@@ -89,11 +91,11 @@ export default function NetworkMap({
     let cancelled = false;
     getNetworkMap()
       .then((d) => !cancelled && setMap(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить карту сети."));
+      .catch(() => !cancelled && setError(t("networkMap.loadError")));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const { flowNodes, flowEdges } = useMemo(() => {
     if (!map) return { flowNodes: [] as Node[], flowEdges: [] as Edge[] };
@@ -128,15 +130,15 @@ export default function NetworkMap({
   }
 
   if (error) return <p className="muted">{error}</p>;
-  if (!map) return <p className="muted">Загрузка…</p>;
-  if (!map.nodes.length) return <p className="muted">Роутеров пока нет — добавьте первый.</p>;
+  if (!map) return <p className="muted">{t("common.loading")}</p>;
+  if (!map.nodes.length) return <p className="muted">{t("fleet.empty")}</p>;
 
   return (
     <div>
       {!!map.warnings.length && (
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 500, marginBottom: 6 }}>
-            Не удалось опросить {map.warnings.length} роутер(ов)
+            {t("networkMap.unreachableWarning", { count: map.warnings.length })}
           </div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             {map.warnings.map((w) => (
@@ -149,7 +151,7 @@ export default function NetworkMap({
       )}
       {!map.edges.length && (
         <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-          Связей между роутерами не обнаружено — Neighbor Discovery не увидел ни одного известного соседа.
+          {t("networkMap.noLinks")}
         </p>
       )}
       <div style={{ height: "70vh", border: "0.5px solid var(--border-strong)", borderRadius: "var(--radius)" }}>

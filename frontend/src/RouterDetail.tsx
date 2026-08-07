@@ -85,37 +85,35 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
     let cancelled = false;
     getRouterStatusReason(routerId)
       .then((d) => !cancelled && setData(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить причину."));
+      .catch(() => !cancelled && setError(t("statusReason.loadError")));
     return () => { cancelled = true; };
-  }, [routerId]);
+  }, [routerId, t]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 480 }}>
-        <h2>Почему статус «{t(`status.${status}`, status)}»?</h2>
+        <h2>{t("statusReason.title", { status: t(`status.${status}`, status) })}</h2>
         {error && <ErrorNote msg={error} />}
-        {!data && !error && <p className="muted">Загрузка…</p>}
+        {!data && !error && <p className="muted">{t("common.loading")}</p>}
 
         {data && status === "warn" && (
           data.downInterfaces.length ? (
             <>
               <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-                Не в состоянии up {data.downInterfaces.length === 1 ? "наблюдаемый интерфейс" : "наблюдаемые интерфейсы"}
-                {" "}(список наблюдаемых — во вкладке «Мониторинг»):
+                {t("statusReason.notInState")} {data.downInterfaces.length === 1 ? t("statusReason.oneWatched") : t("statusReason.manyWatched")}
+                {" "}{t("statusReason.watchedListNote")}
               </p>
               <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 320, overflowY: "auto" }}>
                 {data.downInterfaces.map((i) => (
                   <li key={i.interface_name} className="mono" style={{ fontSize: 13, marginBottom: 4 }}>
                     {i.interface_name}{" "}
-                    <span className="muted" style={{ fontSize: 11 }}>— по опросу на {new Date(i.time).toLocaleString()}</span>
+                    <span className="muted" style={{ fontSize: 11 }}>{t("statusReason.polledAt")} {new Date(i.time).toLocaleString()}</span>
                   </li>
                 ))}
               </ul>
             </>
           ) : (
-            <p className="muted">
-              Не нашли конкретный интерфейс — возможно, статус уже поменялся с момента последнего опроса.
-            </p>
+            <p className="muted">{t("statusReason.noSpecificIface")}</p>
           )
         )}
 
@@ -123,7 +121,7 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
           data.events.length ? (
             <>
               <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-                Роутер не ответил при последнем опросе. Последние связанные записи из лога воркера:
+                {t("statusReason.routerNoAnswer")}
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
                 {data.events.map((e, i) => (
@@ -136,14 +134,12 @@ function StatusReasonModal({ routerId, status, onClose }: { routerId: string; st
               </div>
             </>
           ) : (
-            <p className="muted">
-              Записей в логе не нашлось — попробуйте вкладку «Логи» (☰ меню, только admin) для полной картины.
-            </p>
+            <p className="muted">{t("statusReason.noLogEntries")}</p>
           )
         )}
 
         <div className="modal-actions">
-          <button className="primary" onClick={onClose}>Закрыть</button>
+          <button className="primary" onClick={onClose}>{t("common.close")}</button>
         </div>
       </div>
     </div>
@@ -165,7 +161,7 @@ export function StatusBadge({ router }: { router: RouterSummary }) {
       <span
         className={`badge ${router.status}`}
         style={clickable ? { cursor: "pointer", textDecoration: "underline dotted" } : undefined}
-        title={clickable ? "Нажмите, чтобы узнать причину" : undefined}
+        title={clickable ? t("statusReason.clickHint") : undefined}
         onClick={
           clickable
             ? (e) => {
@@ -301,6 +297,7 @@ function MiniLineChart({
   max?: number;
   suffix: string;
 }) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -330,7 +327,7 @@ function MiniLineChart({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
         <strong style={{ fontSize: 13 }}>{title}</strong>
         <span className="muted mono" style={{ fontSize: 11 }}>
-          {latest ? `${Math.round(latest.v)}${suffix}` : "нет данных"}
+          {latest ? `${Math.round(latest.v)}${suffix}` : t("common.noData")}
         </span>
       </div>
       <div style={{ position: "relative", height: 150 }}>
@@ -782,6 +779,7 @@ function WifiClientCard({
   heatRatio: number;
   onDetail: (mac: string) => void;
 }) {
+  const { t } = useTranslation();
   const title = client.hostname || client.ip || client.mac;
   const icon = guessDeviceIcon(client.hostname) ?? "📱";
   const subtitleParts = [
@@ -800,12 +798,12 @@ function WifiClientCard({
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span
             className="mono"
-            title="Собственный пик устройства как доля от пикового суммарного трафика сети за выбранный период"
+            title={t("wifiTopTab.heatTitle")}
             style={{ fontSize: 11, color: heat }}
           >
             {Math.round(heatRatio * 100)}%
           </span>
-          <button onClick={() => onDetail(client.mac)} style={{ fontSize: 11, padding: "3px 8px" }}>Детально</button>
+          <button onClick={() => onDetail(client.mac)} style={{ fontSize: 11, padding: "3px 8px" }}>{t("common.details")}</button>
         </div>
       </div>
       <div className="muted mono" style={{ fontSize: 11, marginBottom: 8 }}>
@@ -816,13 +814,8 @@ function WifiClientCard({
   );
 }
 
-const CONFIDENCE_LABEL: Record<string, string> = {
-  exact: "точно",
-  shared: "общий порт",
-  neighbor: "сосед",
-};
-
 function EthernetDestinationsModal({ router, mac, onClose }: { router: RouterSummary; mac: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const [data, setData] = useState<EthernetDestinations | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -830,30 +823,30 @@ function EthernetDestinationsModal({ router, mac, onClose }: { router: RouterSum
     let cancelled = false;
     getEthernetClientDestinations(router.id, mac)
       .then((d) => !cancelled && setData(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить данные."));
+      .catch(() => !cancelled && setError(t("ethDest.loadError")));
     return () => { cancelled = true; };
-  }, [router.id, mac]);
+  }, [router.id, mac, t]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 560 }}>
-        <h2>Топ адресов — {mac}</h2>
+        <h2>{t("ethDest.title")} {mac}</h2>
         {error && <ErrorNote msg={error} />}
-        {!data && !error && <p className="muted">Загрузка…</p>}
-        {data && !data.ip && <p className="muted">IP для этого устройства не определён (нет DHCP-аренды/ARP-записи).</p>}
+        {!data && !error && <p className="muted">{t("common.loading")}</p>}
+        {data && !data.ip && <p className="muted">{t("ethDest.noIp")}</p>}
         {data && data.ip && !data.topDestinations.length && (
-          <p className="muted">Нет данных — устройство сейчас не активно.</p>
+          <p className="muted">{t("ethDest.noDataInactive")}</p>
         )}
         {data && !!data.topDestinations.length && (
           <div className="table-scroll">
             <table>
-              <thead><tr><th>Адрес</th><th>Порт</th><th>Протокол</th><th>Соединений</th><th>Байт</th></tr></thead>
+              <thead><tr><th>{t("clientDetail.colAddress")}</th><th>{t("clientDetail.colPort")}</th><th>{t("clientDetail.colProtocol")}</th><th>{t("clientDetail.colConnections")}</th><th>{t("clientDetail.colBytes")}</th></tr></thead>
               <tbody>
                 {data.topDestinations.map((d, i) => (
                   <tr key={i}>
                     <td className="mono">{d.ip}</td>
-                    <td className="mono">{d.port ?? "—"}</td>
-                    <td>{d.protocol ?? "—"}</td>
+                    <td className="mono">{d.port ?? t("common.dash")}</td>
+                    <td>{d.protocol ?? t("common.dash")}</td>
                     <td>{d.connections}</td>
                     <td className="mono">{(d.bytes / 1024).toFixed(1)} KB</td>
                   </tr>
@@ -863,7 +856,7 @@ function EthernetDestinationsModal({ router, mac, onClose }: { router: RouterSum
           </div>
         )}
         <div className="modal-actions">
-          <button className="primary" onClick={onClose}>Закрыть</button>
+          <button className="primary" onClick={onClose}>{t("common.close")}</button>
         </div>
       </div>
     </div>
@@ -871,15 +864,16 @@ function EthernetDestinationsModal({ router, mac, onClose }: { router: RouterSum
 }
 
 function EthernetClientCard({ client, color, router }: { client: EthernetTopClient; color: string; router: RouterSummary }) {
+  const { t } = useTranslation();
   const [showDest, setShowDest] = useState(false);
-  const title = client.confidence === "exact" ? client.hostname || client.ip || client.mac || client.port : `Порт ${client.port}`;
+  const title = client.confidence === "exact" ? client.hostname || client.ip || client.mac || client.port : `${t("ethTopTab.port")} ${client.port}`;
   const icon = client.confidence === "exact" ? guessDeviceIcon(client.hostname) ?? "🖥" : "🔌";
   const subtitleParts = [
     client.confidence === "exact" && client.ip ? client.ip : null,
     client.confidence === "exact" ? client.mac : null,
-    client.port ? `Порт: ${client.port}` : null,
-    client.neighborIdentity ? `Сосед: ${client.neighborIdentity}` : null,
-    client.confidence !== "exact" && client.hostCount ? `${client.hostCount} устройств` : null,
+    client.port ? `${t("ethTopTab.port")}: ${client.port}` : null,
+    client.neighborIdentity ? `${t("ethTopTab.neighbor")}: ${client.neighborIdentity}` : null,
+    client.confidence !== "exact" && client.hostCount ? `${client.hostCount} ${t("ethTopTab.devicesCount")}` : null,
   ].filter(Boolean);
 
   return (
@@ -888,9 +882,9 @@ function EthernetClientCard({ client, color, router }: { client: EthernetTopClie
         <strong style={{ fontSize: 13 }}>{icon} {title}</strong>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {client.confidence === "exact" && client.mac && (
-            <button onClick={() => setShowDest(true)} style={{ fontSize: 11, padding: "3px 8px" }}>Детально</button>
+            <button onClick={() => setShowDest(true)} style={{ fontSize: 11, padding: "3px 8px" }}>{t("common.details")}</button>
           )}
-          <span className="badge unknown">{CONFIDENCE_LABEL[client.confidence]}</span>
+          <span className="badge unknown">{t(`confidence.${client.confidence}`)}</span>
         </div>
       </div>
       <div className="muted mono" style={{ fontSize: 11, marginBottom: 8 }}>
@@ -904,18 +898,19 @@ function EthernetClientCard({ client, color, router }: { client: EthernetTopClie
   );
 }
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number, units: { d: string; h: string; m: string }): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const parts = [];
-  if (d) parts.push(`${d}д`);
-  if (h || d) parts.push(`${h}ч`);
-  parts.push(`${m}м`);
+  if (d) parts.push(`${d}${units.d}`);
+  if (h || d) parts.push(`${h}${units.h}`);
+  parts.push(`${m}${units.m}`);
   return parts.join(" ");
 }
 
 export function ClientDetailModal({ router, mac, onClose }: { router: RouterSummary; mac: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const [detail, setDetail] = useState<ClientDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -923,11 +918,11 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
     let cancelled = false;
     getWifiClientDetail(router.id, mac, 24)
       .then((d) => !cancelled && setDetail(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить детали клиента."));
+      .catch(() => !cancelled && setError(t("clientDetail.loadError")));
     return () => {
       cancelled = true;
     };
-  }, [router.id, mac]);
+  }, [router.id, mac, t]);
 
   const unit = detail ? pickTrafficUnit(detail.series.map((p) => ({ rx_bps: p.rx_bps, tx_bps: p.tx_bps }))) : null;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -958,14 +953,14 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 720 }}>
-        <h2>Детали клиента</h2>
+        <h2>{t("clientDetail.title")}</h2>
         {error && <ErrorNote msg={error} />}
-        {!detail && !error && <p className="muted">Загрузка…</p>}
+        {!detail && !error && <p className="muted">{t("common.loading")}</p>}
         {detail && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <strong style={{ fontSize: 15 }}>{detail.hostname || detail.ip || detail.mac}</strong>
-              <span className={`badge ${detail.online ? "up" : "down"}`}>{detail.online ? "в сети" : "не в сети"}</span>
+              <span className={`badge ${detail.online ? "up" : "down"}`}>{detail.online ? t("clientDetail.online") : t("clientDetail.offline")}</span>
             </div>
             <div className="muted mono" style={{ fontSize: 12, marginBottom: 16 }}>
               {detail.mac} {detail.ip ? `· ${detail.ip}` : ""}
@@ -973,43 +968,43 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>Производитель</div>
-                <div>{detail.vendor ?? "неизвестен"}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.vendor")}</div>
+                <div>{detail.vendor ?? t("clientDetail.vendorUnknown")}</div>
               </div>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>Подключён с</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.connectedSince")}</div>
                 <div>
                   {detail.connectedSince
                     ? new Date(detail.connectedSince).toLocaleString() +
-                      ` (${formatDuration((Date.now() - new Date(detail.connectedSince).getTime()) / 1000)})`
-                    : "неизвестно"}
+                      ` (${formatDuration((Date.now() - new Date(detail.connectedSince).getTime()) / 1000, { d: t("common.dayUnit"), h: t("common.hourUnit"), m: t("common.minUnit") })})`
+                    : t("clientDetail.unknown")}
                 </div>
               </div>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>Точка доступа / SSID</div>
-                <div>{detail.apOrInterface ?? "—"}{detail.ssid ? ` · ${detail.ssid}` : ""}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.apSsid")}</div>
+                <div>{detail.apOrInterface ?? t("common.dash")}{detail.ssid ? ` · ${detail.ssid}` : ""}</div>
               </div>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>Сигнал</div>
-                <div>{detail.signal !== null ? `${detail.signal} dBm` : "—"}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.signal")}</div>
+                <div>{detail.signal !== null ? `${detail.signal} dBm` : t("common.dash")}</div>
               </div>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>Скорость канала (Rx/Tx PHY)</div>
-                <div className="mono" style={{ fontSize: 12 }}>{detail.rxRate ?? "—"} / {detail.txRate ?? "—"}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.channelSpeed")}</div>
+                <div className="mono" style={{ fontSize: 12 }}>{detail.rxRate ?? t("common.dash")} / {detail.txRate ?? t("common.dash")}</div>
               </div>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>В сети с (DHCP)</div>
-                <div>{detail.firstSeenDhcp ? new Date(detail.firstSeenDhcp).toLocaleString() : "неизвестно"}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.onlineSinceDhcp")}</div>
+                <div>{detail.firstSeenDhcp ? new Date(detail.firstSeenDhcp).toLocaleString() : t("clientDetail.unknown")}</div>
               </div>
               <div>
-                <div className="muted" style={{ fontSize: 11 }}>Начал генерировать трафик</div>
-                <div>{detail.firstTrafficAt ? new Date(detail.firstTrafficAt).toLocaleString() : "пока не зафиксировано"}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{t("clientDetail.trafficStarted")}</div>
+                <div>{detail.firstTrafficAt ? new Date(detail.firstTrafficAt).toLocaleString() : t("clientDetail.neverRecorded")}</div>
               </div>
             </div>
 
             {unit && detail.series.length > 0 && (
               <>
-                <div className="muted" style={{ marginBottom: 6, fontSize: 12 }}>Трафик за 24ч</div>
+                <div className="muted" style={{ marginBottom: 6, fontSize: 12 }}>{t("clientDetail.trafficChart")}</div>
                 <div style={{ position: "relative", height: 160, marginBottom: 12 }}>
                   <canvas ref={canvasRef} />
                 </div>
@@ -1018,9 +1013,8 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
                   if (!latestPoint || (latestPoint.rx_pps === null && latestPoint.tx_pps === null)) return null;
                   return (
                     <p className="muted mono" style={{ fontSize: 12, marginBottom: 20 }}>
-                      Пакетов/сек сейчас: Rx {latestPoint.rx_pps ?? "—"} · Tx {latestPoint.tx_pps ?? "—"}
-                      {" — "}резкий рост pps без роста трафика в kbps часто означает сканирование портов или флуд
-                      мелкими пакетами.
+                      {t("clientDetail.ppsNow")} Rx {latestPoint.rx_pps ?? t("common.dash")} · Tx {latestPoint.tx_pps ?? t("common.dash")}
+                      {" — "}{t("clientDetail.ppsNote")}
                     </p>
                   );
                 })()}
@@ -1028,26 +1022,24 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
             )}
 
             <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-              Разбивка по каналам (провайдер/VPN) убрана — смотрите вкладку «Мониторинг». Ниже — только адреса и
-              порты назначения, без определения исходящего интерфейса (дёшево: RouterOS фильтрует по IP на своей
-              стороне).
+              {t("clientDetail.channelBreakdownNote")}
             </p>
-            <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>Топ адресов и портов</div>
+            <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>{t("clientDetail.topAddressesPorts")}</div>
             {!detail.topDestinations.length && (
-              <p className="muted" style={{ fontSize: 12 }}>Нет данных — клиент сейчас не активен.</p>
+              <p className="muted" style={{ fontSize: 12 }}>{t("clientDetail.noDataInactive")}</p>
             )}
             {!!detail.topDestinations.length && (
               <div className="table-scroll">
                 <table>
                   <thead>
-                    <tr><th>Адрес</th><th>Порт</th><th>Протокол</th><th>Соединений</th><th>Байт</th></tr>
+                    <tr><th>{t("clientDetail.colAddress")}</th><th>{t("clientDetail.colPort")}</th><th>{t("clientDetail.colProtocol")}</th><th>{t("clientDetail.colConnections")}</th><th>{t("clientDetail.colBytes")}</th></tr>
                   </thead>
                   <tbody>
                     {detail.topDestinations.map((d, i) => (
                       <tr key={i}>
                         <td className="mono">{d.ip}</td>
-                        <td className="mono">{d.port ?? "—"}</td>
-                        <td>{d.protocol ?? "—"}</td>
+                        <td className="mono">{d.port ?? t("common.dash")}</td>
+                        <td>{d.protocol ?? t("common.dash")}</td>
                         <td>{d.connections}</td>
                         <td className="mono">{(d.bytes / 1024).toFixed(1)} KB</td>
                       </tr>
@@ -1059,7 +1051,7 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
           </>
         )}
         <div className="modal-actions">
-          <button className="primary" onClick={onClose}>Закрыть</button>
+          <button className="primary" onClick={onClose}>{t("common.close")}</button>
         </div>
       </div>
     </div>
@@ -1067,6 +1059,7 @@ export function ClientDetailModal({ router, mac, onClose }: { router: RouterSumm
 }
 
 function TopWifiClientsTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const { hours, setHours, refreshMs, setRefreshMs, limit, setLimit } = useClientPrefs(CLIENTS_HOURS_KEY + ":wifi");
   const [tick, setTick] = useState(0);
   const [clients, setClients] = useState<WifiTopClient[] | null>(null);
@@ -1088,27 +1081,27 @@ function TopWifiClientsTab({ router }: { router: RouterSummary }) {
         setClients(d.clients);
         setPeakTotalBps(d.peakTotalBps);
       })
-      .catch(() => !cancelled && setError("Не удалось загрузить данные клиентов. Возможно, на этом роутере не настроен CAPsMAN, либо ещё не накопилось ни одного опроса."));
+      .catch(() => !cancelled && setError(t("wifiTopTab.loadError")));
     return () => {
       cancelled = true;
     };
-  }, [router.id, hours, limit, tick]);
+  }, [router.id, hours, limit, tick, t]);
 
   return (
     <div>
       <p className="muted" style={{ marginBottom: 14, fontSize: 12 }}>
-        Данные собираются с CAPsMAN (регистрационная таблица клиентов точек доступа), имена и IP — из DHCP и ARP.
+        {t("wifiTopTab.source")}
       </p>
       <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 6 }}>
           {[1, 24, 168].map((h) => (
             <button key={h} onClick={() => setHours(h)} style={hours === h ? { borderColor: "var(--blue)" } : undefined}>
-              {h === 1 ? "1ч" : h === 24 ? "24ч" : "7д"}
+              {h === 1 ? t("common.h1") : h === 24 ? t("common.h24") : t("common.d7")}
             </button>
           ))}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="muted" style={{ fontSize: 12 }}>Показывать топ:</span>
+          <span className="muted" style={{ fontSize: 12 }}>{t("common.showTop")}</span>
           {[10, 15, 25].map((n) => (
             <button key={n} onClick={() => setLimit(n)} style={limit === n ? { borderColor: "var(--blue)" } : undefined}>
               {n}
@@ -1116,8 +1109,8 @@ function TopWifiClientsTab({ router }: { router: RouterSummary }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="muted" style={{ fontSize: 12 }}>Автообновление:</span>
-          {[{ label: "Выкл", ms: 0 }, { label: "10с", ms: 10000 }, { label: "30с", ms: 30000 }, { label: "1мин", ms: 60000 }].map((o) => (
+          <span className="muted" style={{ fontSize: 12 }}>{t("common.autoRefresh")}</span>
+          {[{ label: t("common.refreshOff"), ms: 0 }, { label: t("common.refresh10s"), ms: 10000 }, { label: t("common.refresh30s"), ms: 30000 }, { label: t("common.refresh1m"), ms: 60000 }].map((o) => (
             <button key={o.ms} onClick={() => setRefreshMs(o.ms)} style={refreshMs === o.ms ? { borderColor: "var(--blue)" } : undefined}>
               {o.label}
             </button>
@@ -1126,15 +1119,14 @@ function TopWifiClientsTab({ router }: { router: RouterSummary }) {
       </div>
 
       {error && <ErrorNote msg={error} />}
-      {!clients && !error && <ErrorNote msg="Загрузка…" />}
+      {!clients && !error && <ErrorNote msg={t("common.loading")} />}
       {clients && !clients.length && !error && (
-        <ErrorNote msg="Пока нет данных — либо на роутере не настроен CAPsMAN, либо клиенты появятся после следующего опроса, либо все клиенты отсутствовали в сети последний час." />
+        <ErrorNote msg={t("wifiTopTab.noData")} />
       )}
       {clients && !!clients.length && (
         <>
           <p className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
-            Отсортировано по среднему потреблению за выбранный период. Цвет полосы слева и процент — собственный
-            пик устройства как доля от пикового суммарного трафика сети (самой загруженной точки за этот же период).
+            {t("wifiTopTab.sortedNote")}
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
             {clients.map((c, idx) => (
@@ -1155,6 +1147,7 @@ function TopWifiClientsTab({ router }: { router: RouterSummary }) {
 }
 
 function TopEthernetClientsTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const { hours, setHours, refreshMs, setRefreshMs, limit, setLimit } = useClientPrefs(CLIENTS_HOURS_KEY + ":eth");
   const [tick, setTick] = useState(0);
   const [clients, setClients] = useState<EthernetTopClient[] | null>(null);
@@ -1170,29 +1163,27 @@ function TopEthernetClientsTab({ router }: { router: RouterSummary }) {
     let cancelled = false;
     getTopEthernetClients(router.id, hours, limit)
       .then((d) => !cancelled && setClients(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить данные проводных клиентов."));
+      .catch(() => !cancelled && setError(t("ethTopTab.loadError")));
     return () => {
       cancelled = true;
     };
-  }, [router.id, hours, limit, tick]);
+  }, [router.id, hours, limit, tick, t]);
 
   return (
     <div>
       <p className="muted" style={{ marginBottom: 14, fontSize: 12 }}>
-        Без настройки Simple Queue: если на порту виден ровно один MAC (таблица бриджа) — его скорость показана точно
-        («точно»). Порт с несколькими устройствами или ведущий к другому MikroTik/свитчу (Neighbor Discovery)
-        показывается честно как общий/соседний, без придуманных цифр на одно устройство.
+        {t("ethTopTab.source")}
       </p>
       <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 6 }}>
           {[1, 24, 168].map((h) => (
             <button key={h} onClick={() => setHours(h)} style={hours === h ? { borderColor: "var(--blue)" } : undefined}>
-              {h === 1 ? "1ч" : h === 24 ? "24ч" : "7д"}
+              {h === 1 ? t("common.h1") : h === 24 ? t("common.h24") : t("common.d7")}
             </button>
           ))}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="muted" style={{ fontSize: 12 }}>Показывать топ:</span>
+          <span className="muted" style={{ fontSize: 12 }}>{t("common.showTop")}</span>
           {[10, 15, 25].map((n) => (
             <button key={n} onClick={() => setLimit(n)} style={limit === n ? { borderColor: "var(--blue)" } : undefined}>
               {n}
@@ -1200,8 +1191,8 @@ function TopEthernetClientsTab({ router }: { router: RouterSummary }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="muted" style={{ fontSize: 12 }}>Автообновление:</span>
-          {[{ label: "Выкл", ms: 0 }, { label: "10с", ms: 10000 }, { label: "30с", ms: 30000 }, { label: "1мин", ms: 60000 }].map((o) => (
+          <span className="muted" style={{ fontSize: 12 }}>{t("common.autoRefresh")}</span>
+          {[{ label: t("common.refreshOff"), ms: 0 }, { label: t("common.refresh10s"), ms: 10000 }, { label: t("common.refresh30s"), ms: 30000 }, { label: t("common.refresh1m"), ms: 60000 }].map((o) => (
             <button key={o.ms} onClick={() => setRefreshMs(o.ms)} style={refreshMs === o.ms ? { borderColor: "var(--blue)" } : undefined}>
               {o.label}
             </button>
@@ -1210,9 +1201,9 @@ function TopEthernetClientsTab({ router }: { router: RouterSummary }) {
       </div>
 
       {error && <ErrorNote msg={error} />}
-      {!clients && !error && <ErrorNote msg="Загрузка…" />}
+      {!clients && !error && <ErrorNote msg={t("common.loading")} />}
       {clients && !clients.length && !error && (
-        <ErrorNote msg="Пока нет данных — либо на роутере нет бриджа, либо клиенты появятся после следующего опроса." />
+        <ErrorNote msg={t("ethTopTab.noData")} />
       )}
       {clients && !!clients.length && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
@@ -1235,6 +1226,7 @@ function formatBytes(n: number): string {
 }
 
 function FirewallTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [rules, setRules] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshMs, setRefreshMsState] = useState(() => loadNumberPref(FIREWALL_REFRESH_KEY, 15000));
@@ -1276,15 +1268,15 @@ function FirewallTab({ router }: { router: RouterSummary }) {
         setRates(nextRates);
         setRules(data);
       })
-      .catch(() => !cancelled && setError("Роутер недоступен — правила не получены."));
+      .catch(() => !cancelled && setError(t("firewall.unreachable")));
     return () => {
       cancelled = true;
     };
-  }, [router.id, tick]);
+  }, [router.id, tick, t]);
 
   if (error) return <ErrorNote msg={error} />;
-  if (!rules) return <ErrorNote msg="Загрузка…" />;
-  if (!rules.length) return <ErrorNote msg="Правил firewall нет." />;
+  if (!rules) return <ErrorNote msg={t("common.loading")} />;
+  if (!rules.length) return <ErrorNote msg={t("firewall.noRules")} />;
 
   // Position of each rule within its own chain, in the order RouterOS
   // returned them (which is the actual evaluation order) — used for the
@@ -1310,24 +1302,22 @@ function FirewallTab({ router }: { router: RouterSummary }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
-        <span className="muted" style={{ fontSize: 12 }}>Автообновление счётчиков:</span>
-        {[{ label: "Выкл", ms: 0 }, { label: "5с", ms: 5000 }, { label: "15с", ms: 15000 }, { label: "1мин", ms: 60000 }].map((o) => (
+        <span className="muted" style={{ fontSize: 12 }}>{t("firewall.autoRefreshCounters")}</span>
+        {[{ label: t("common.refreshOff"), ms: 0 }, { label: t("common.refresh5s"), ms: 5000 }, { label: t("common.refresh15s"), ms: 15000 }, { label: t("common.refresh1m"), ms: 60000 }].map((o) => (
           <button key={o.ms} onClick={() => setRefreshMs(o.ms)} style={refreshMs === o.ms ? { borderColor: "var(--blue)" } : undefined}>
             {o.label}
           </button>
         ))}
       </div>
       <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
-        Скорость (bps/pps) считается по разнице счётчиков между обновлениями — появится после второго опроса.
-        «Возможное узкое место» — эвристика: правило стоит далеко в цепочке (после многих других) и при этом
-        через него проходит заметная доля пакетов этой цепочки — стоит проверить порядок правил.
+        {t("firewall.speedNote")}
       </p>
       {!!topByLoad.length && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>Топ по нагрузке сейчас</strong>
+          <strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>{t("firewall.topLoadNow")}</strong>
           <div className="table-scroll">
             <table>
-              <thead><tr><th>Chain</th><th>Action</th><th>Src</th><th>Dst</th><th>Скорость</th></tr></thead>
+              <thead><tr><th>Chain</th><th>Action</th><th>Src</th><th>Dst</th><th>{t("firewall.colSpeed")}</th></tr></thead>
               <tbody>
                 {topByLoad.map(({ rule: r, rate }) => (
                   <tr key={r[".id"]}>
@@ -1346,7 +1336,7 @@ function FirewallTab({ router }: { router: RouterSummary }) {
       <div className="table-scroll">
         <table>
           <thead>
-            <tr><th>Chain</th><th>Action</th><th>Src</th><th>Dst</th><th>Packets</th><th>Bytes</th><th>Скорость</th><th>Статус</th></tr>
+            <tr><th>Chain</th><th>Action</th><th>Src</th><th>Dst</th><th>Packets</th><th>Bytes</th><th>{t("firewall.colSpeed")}</th><th>{t("firewall.colStatus")}</th></tr>
           </thead>
           <tbody>
             {rules.map((r, i) => {
@@ -1357,9 +1347,9 @@ function FirewallTab({ router }: { router: RouterSummary }) {
               const chainLen = chainCounts.get(r.chain) ?? 1;
               const isBottleneck = idx > chainLen / 2 && packets > maxPackets * 0.15;
               let statusBadge: { cls: string; text: string };
-              if (packets === 0) statusBadge = { cls: "unknown", text: "не сработало" };
-              else if (rate && rate.pps > 0) statusBadge = { cls: "up", text: "активно" };
-              else statusBadge = { cls: "warn", text: "сейчас тихо" };
+              if (packets === 0) statusBadge = { cls: "unknown", text: t("firewall.notTriggered") };
+              else if (rate && rate.pps > 0) statusBadge = { cls: "up", text: t("firewall.active") };
+              else statusBadge = { cls: "warn", text: t("firewall.quietNow") };
 
               return (
                 <tr key={id ?? i}>
@@ -1369,11 +1359,11 @@ function FirewallTab({ router }: { router: RouterSummary }) {
                   <td className="mono">{r["dst-address"] ?? "any"}</td>
                   <td className="mono">{packets.toLocaleString()}</td>
                   <td className="mono">{formatBytes(Number(r.bytes ?? 0))}</td>
-                  <td className="mono">{rate ? `${Math.round(rate.bps / 1000)} kbps` : "—"}</td>
+                  <td className="mono">{rate ? `${Math.round(rate.bps / 1000)} kbps` : t("common.dash")}</td>
                   <td>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <span className={`badge ${statusBadge.cls}`}>{statusBadge.text}</span>
-                      {isBottleneck && <span className="badge warn" title="Далеко в цепочке и заметная доля пакетов — проверьте порядок правил">⚠️ узкое место?</span>}
+                      {isBottleneck && <span className="badge warn" title={t("firewall.bottleneckTitle")}>{t("firewall.bottleneck")}</span>}
                     </div>
                   </td>
                 </tr>
@@ -1388,6 +1378,7 @@ function FirewallTab({ router }: { router: RouterSummary }) {
 }
 
 function TopBlockedPanel({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [hours, setHours] = useState(24);
   const [entries, setEntries] = useState<TopBlockedEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1396,40 +1387,39 @@ function TopBlockedPanel({ router }: { router: RouterSummary }) {
     let cancelled = false;
     getTopBlocked(router.id, hours, 15)
       .then((d) => !cancelled && setEntries(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить данные."));
+      .catch(() => !cancelled && setError(t("common.loadErrorGeneric")));
     return () => { cancelled = true; };
-  }, [router.id, hours]);
+  }, [router.id, hours, t]);
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Топ по блокировкам (угрозы)</strong>
+      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>{t("topBlocked.title")}</strong>
       <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-        Кто чаще всего ловит drop/reject — типичный признак сканирования портов или брутфорса. Требует{" "}
-        <code className="mono">log=yes</code> на нужных правилах firewall (настраивается на самом роутере — см.
-        «Документация» в ☰ меню). Пока это не включено, список будет пустым.
+        {t("topBlocked.description")}{" "}
+        <code className="mono">log=yes</code> {t("topBlocked.descriptionCont")}
       </p>
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[1, 24, 168].map((h) => (
           <button key={h} onClick={() => setHours(h)} style={hours === h ? { borderColor: "var(--blue)" } : undefined}>
-            {h === 1 ? "1ч" : h === 24 ? "24ч" : "7д"}
+            {h === 1 ? t("common.h1") : h === 24 ? t("common.h24") : t("common.d7")}
           </button>
         ))}
       </div>
       {error && <ErrorNote msg={error} />}
-      {!entries && !error && <p className="muted">Загрузка…</p>}
+      {!entries && !error && <p className="muted">{t("common.loading")}</p>}
       {entries && !entries.length && !error && (
-        <p className="muted" style={{ fontSize: 12 }}>Пока нет данных за этот период.</p>
+        <p className="muted" style={{ fontSize: 12 }}>{t("topBlocked.noDataPeriod")}</p>
       )}
       {entries && !!entries.length && (
         <div className="table-scroll">
           <table>
-            <thead><tr><th>IP</th><th>Хост</th><th>MAC</th><th>Попыток</th><th>Последний раз</th></tr></thead>
+            <thead><tr><th>IP</th><th>{t("topBlocked.colHost")}</th><th>MAC</th><th>{t("topBlocked.colAttempts")}</th><th>{t("topBlocked.colLastSeen")}</th></tr></thead>
             <tbody>
               {entries.map((e) => (
                 <tr key={e.ip}>
                   <td className="mono">{e.ip}</td>
-                  <td>{e.hostname ?? "—"}</td>
-                  <td className="mono">{e.mac ?? "—"}</td>
+                  <td>{e.hostname ?? t("common.dash")}</td>
+                  <td className="mono">{e.mac ?? t("common.dash")}</td>
                   <td className="mono">{e.hits.toLocaleString()}</td>
                   <td className="mono" style={{ fontSize: 11 }}>{new Date(e.lastSeen).toLocaleString()}</td>
                 </tr>
@@ -1443,25 +1433,26 @@ function TopBlockedPanel({ router }: { router: RouterSummary }) {
 }
 
 function DhcpTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [leases, setLeases] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [poolUsage, setPoolUsage] = useState<DhcpPoolUsage[] | null>(null);
 
   useEffect(() => {
-    getDhcpLeases(router.id).then(setLeases).catch(() => setError("Роутер недоступен — аренды не получены."));
+    getDhcpLeases(router.id).then(setLeases).catch(() => setError(t("dhcp.unreachable")));
     // Best-effort, auxiliary to the main leases table — a router without
     // /ip/pool configured (all-static DHCP) just shows nothing here.
     getDhcpPoolUsage(router.id).then(setPoolUsage).catch(() => setPoolUsage([]));
-  }, [router.id]);
+  }, [router.id, t]);
 
   if (error) return <ErrorNote msg={error} />;
-  if (!leases) return <ErrorNote msg="Загрузка…" />;
+  if (!leases) return <ErrorNote msg={t("common.loading")} />;
 
   return (
     <div>
       {!!poolUsage?.length && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <strong style={{ fontSize: 13, display: "block", marginBottom: 10 }}>Заполненность пулов DHCP</strong>
+          <strong style={{ fontSize: 13, display: "block", marginBottom: 10 }}>{t("dhcp.poolFillTitle")}</strong>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {poolUsage.map((p) => (
               <div key={p.server}>
@@ -1483,19 +1474,19 @@ function DhcpTab({ router }: { router: RouterSummary }) {
       )}
 
       {!leases.length ? (
-        <ErrorNote msg="Нет активных аренд." />
+        <ErrorNote msg={t("dhcp.noLeases")} />
       ) : (
         <table>
-          <thead><tr><th>IP</th><th>MAC</th><th>Хост</th><th>Статус</th><th>В сети с</th></tr></thead>
+          <thead><tr><th>IP</th><th>MAC</th><th>{t("dhcp.colHost")}</th><th>{t("dhcp.colStatus")}</th><th>{t("dhcp.colOnlineSince")}</th></tr></thead>
           <tbody>
             {leases.map((l, i) => (
               <tr key={i}>
                 <td className="mono">{l.address}</td>
                 <td className="mono">{l["mac-address"]}</td>
-                <td>{l["host-name"] ? `${guessDeviceIcon(l["host-name"]) ?? "❔"} ${l["host-name"]}` : "—"}</td>
+                <td>{l["host-name"] ? `${guessDeviceIcon(l["host-name"]) ?? "❔"} ${l["host-name"]}` : t("common.dash")}</td>
                 <td>{l.status}</td>
                 <td className="mono" style={{ fontSize: 11 }}>
-                  {l["first-seen"] ? new Date(l["first-seen"]).toLocaleString() : "—"}
+                  {l["first-seen"] ? new Date(l["first-seen"]).toLocaleString() : t("common.dash")}
                 </td>
               </tr>
             ))}
@@ -1509,6 +1500,7 @@ function DhcpTab({ router }: { router: RouterSummary }) {
 }
 
 function DeviceEventsPanel({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [hours, setHours] = useState(24);
   const [events, setEvents] = useState<DeviceEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1517,34 +1509,34 @@ function DeviceEventsPanel({ router }: { router: RouterSummary }) {
     let cancelled = false;
     getDeviceEvents(router.id, hours, 50)
       .then((d) => !cancelled && setEvents(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить события."));
+      .catch(() => !cancelled && setError(t("deviceEvents.loadError")));
     return () => { cancelled = true; };
-  }, [router.id, hours]);
+  }, [router.id, hours, t]);
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Лента событий устройств</strong>
+      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>{t("deviceEvents.title")}</strong>
       <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-        Появление и исчезновение устройств в сети, по DHCP-арендам.
+        {t("deviceEvents.description")}
       </p>
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[1, 24, 168].map((h) => (
           <button key={h} onClick={() => setHours(h)} style={hours === h ? { borderColor: "var(--blue)" } : undefined}>
-            {h === 1 ? "1ч" : h === 24 ? "24ч" : "7д"}
+            {h === 1 ? t("common.h1") : h === 24 ? t("common.h24") : t("common.d7")}
           </button>
         ))}
       </div>
       {error && <ErrorNote msg={error} />}
-      {!events && !error && <p className="muted">Загрузка…</p>}
+      {!events && !error && <p className="muted">{t("common.loading")}</p>}
       {events && !events.length && !error && (
-        <p className="muted" style={{ fontSize: 12 }}>Событий за этот период нет.</p>
+        <p className="muted" style={{ fontSize: 12 }}>{t("deviceEvents.noEvents")}</p>
       )}
       {events && !!events.length && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
           {events.map((e, i) => (
             <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12, flexWrap: "wrap" }}>
               <span className={`badge ${e.event_type === "online" ? "up" : "down"}`}>
-                {e.event_type === "online" ? "появилось" : "пропало"}
+                {e.event_type === "online" ? t("deviceEvents.appeared") : t("deviceEvents.disappeared")}
               </span>
               <span>{guessDeviceIcon(e.hostname) ?? "❔"} {e.hostname || e.ip_address || e.mac_address}</span>
               <span className="muted mono" style={{ fontSize: 11 }}>{e.mac_address}</span>
@@ -1558,23 +1550,24 @@ function DeviceEventsPanel({ router }: { router: RouterSummary }) {
 }
 
 function WifiTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [clients, setClients] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getWifiClients(router.id).then(setClients).catch(() => setError("Wi-Fi недоступен на этом роутере."));
-  }, [router.id]);
+    getWifiClients(router.id).then(setClients).catch(() => setError(t("wifiRawTab.unreachable")));
+  }, [router.id, t]);
 
   if (error) return <ErrorNote msg={error} />;
-  if (!clients) return <ErrorNote msg="Загрузка…" />;
-  if (!clients.length) return <ErrorNote msg="Нет подключённых клиентов." />;
+  if (!clients) return <ErrorNote msg={t("common.loading")} />;
+  if (!clients.length) return <ErrorNote msg={t("wifiRawTab.noClients")} />;
 
   return (
     <table>
-      <thead><tr><th>MAC</th><th>Интерфейс</th><th>Сигнал</th></tr></thead>
+      <thead><tr><th>MAC</th><th>{t("wifiRawTab.colInterface")}</th><th>{t("wifiRawTab.colSignal")}</th></tr></thead>
       <tbody>
         {clients.map((c, i) => (
-          <tr key={i}><td className="mono">{c["mac-address"]}</td><td>{c.interface}</td><td>{c["signal-strength"] ?? "—"}</td></tr>
+          <tr key={i}><td className="mono">{c["mac-address"]}</td><td>{c.interface}</td><td>{c["signal-strength"] ?? t("common.dash")}</td></tr>
         ))}
       </tbody>
     </table>
@@ -1582,6 +1575,7 @@ function WifiTab({ router }: { router: RouterSummary }) {
 }
 
 function TopDestinationsTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [destinations, setDestinations] = useState<TopDestination[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1596,7 +1590,7 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
       setDestinations(d);
       setLoadedOnce(true);
     } catch {
-      setError("Не удалось загрузить — роутер недоступен, либо таблица соединений слишком большая для выгрузки за один запрос.");
+      setError(t("destinations.loadError"));
     } finally {
       setLoading(false);
     }
@@ -1605,13 +1599,10 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
   return (
     <div>
       <p className="muted" style={{ marginBottom: 14, fontSize: 12 }}>
-        Живой снимок таблицы отслеживания соединений (conntrack), агрегированный по адресу назначения — не
-        сохраняется в историю и не опрашивается фоново, только по нажатию кнопки. На роутере с очень большим числом
-        активных соединений запрос может занять несколько секунд или не выполниться — это ограничение самого
-        RouterOS REST API на больших таблицах, не приложения.
+        {t("destinations.description")}
       </p>
       <button className="primary" onClick={load} disabled={loading}>
-        {loading ? "Загружаем…" : loadedOnce ? "Обновить" : "Загрузить"}
+        {loading ? t("destinations.loading") : loadedOnce ? t("destinations.refresh") : t("destinations.load")}
       </button>
       {error && (
         <div style={{ marginTop: 12 }}>
@@ -1619,13 +1610,13 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
         </div>
       )}
       {destinations && !destinations.length && !error && (
-        <p className="muted" style={{ marginTop: 12 }}>Активных соединений не найдено.</p>
+        <p className="muted" style={{ marginTop: 12 }}>{t("destinations.noConnections")}</p>
       )}
       {!!destinations?.length && (
         <div className="table-scroll" style={{ marginTop: 14 }}>
           <table>
             <thead>
-              <tr><th></th><th>Адрес назначения</th><th>Порт</th><th>Протокол</th><th>Соединений</th><th>Байт</th></tr>
+              <tr><th></th><th>{t("destinations.colDestAddress")}</th><th>{t("destinations.colPort")}</th><th>{t("destinations.colProtocol")}</th><th>{t("destinations.colConnections")}</th><th>{t("destinations.colBytes")}</th></tr>
             </thead>
             <tbody>
               {destinations.map((d) => (
@@ -1636,8 +1627,8 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
                       {d.ip}
                       {d.hostname && <div className="muted" style={{ fontSize: 11 }}>{d.hostname}</div>}
                     </td>
-                    <td className="mono">{d.port ?? "—"}</td>
-                    <td>{d.protocol ?? "—"}</td>
+                    <td className="mono">{d.port ?? t("common.dash")}</td>
+                    <td>{d.protocol ?? t("common.dash")}</td>
                     <td className="mono">{d.connections}</td>
                     <td className="mono">{formatBytes(d.bytes)}</td>
                   </tr>
@@ -1646,10 +1637,10 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
                       <td></td>
                       <td colSpan={5} style={{ paddingTop: 0, paddingBottom: 16 }}>
                         <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>
-                          Устройства, которые сюда обращались — по убыванию числа обращений:
+                          {t("destinations.sourcesNote")}
                         </div>
                         <table>
-                          <thead><tr><th>Устройство</th><th>MAC</th><th>Соединений</th><th>Байт</th></tr></thead>
+                          <thead><tr><th>{t("destinations.colDevice")}</th><th>MAC</th><th>{t("destinations.colConnections")}</th><th>{t("destinations.colBytes")}</th></tr></thead>
                           <tbody>
                             {d.sources.map((s) => (
                               <tr key={s.ip}>
@@ -1657,7 +1648,7 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
                                   {guessDeviceIcon(s.hostname) ?? "❔"} {s.hostname ?? s.ip}
                                   {s.hostname && <span className="muted"> ({s.ip})</span>}
                                 </td>
-                                <td className="mono">{s.mac ?? "—"}</td>
+                                <td className="mono">{s.mac ?? t("common.dash")}</td>
                                 <td className="mono">{s.connections}</td>
                                 <td className="mono">{formatBytes(s.bytes)}</td>
                               </tr>
@@ -1678,6 +1669,7 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
 }
 
 function EditRouterModal({ router, onClose, onUpdated }: { router: RouterSummary; onClose: () => void; onUpdated: () => void }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<{ name: string; host: string; port: number; username: string; password: string; model: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1690,9 +1682,9 @@ function EditRouterModal({ router, onClose, onUpdated }: { router: RouterSummary
         if (cancelled) return;
         setForm({ name: d.name, host: d.host, port: d.port, username: d.username, password: "", model: d.model ?? "" });
       })
-      .catch(() => !cancelled && setLoadError("Не удалось загрузить данные роутера."));
+      .catch(() => !cancelled && setLoadError(t("editRouter.loadError")));
     return () => { cancelled = true; };
-  }, [router.id]);
+  }, [router.id, t]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1708,7 +1700,7 @@ function EditRouterModal({ router, onClose, onUpdated }: { router: RouterSummary
       onUpdated();
       onClose();
     } catch {
-      setError("Не удалось сохранить изменения. Проверьте права доступа.");
+      setError(t("editRouter.saveError"));
     } finally {
       setBusy(false);
     }
@@ -1717,29 +1709,29 @@ function EditRouterModal({ router, onClose, onUpdated }: { router: RouterSummary
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>Изменить роутер</h2>
+        <h2>{t("editRouter.title")}</h2>
         {loadError && <div className="error-text">{loadError}</div>}
-        {!form && !loadError && <p className="muted">Загрузка…</p>}
+        {!form && !loadError && <p className="muted">{t("common.loading")}</p>}
         {form && (
           <>
-            <label>Имя</label>
+            <label>{t("editRouter.name")}</label>
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <label>Хост / IP</label>
+            <label>{t("editRouter.host")}</label>
             <input required value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} />
-            <label>Порт (REST API)</label>
+            <label>{t("editRouter.port")}</label>
             <input type="number" value={form.port} onChange={(e) => setForm({ ...form, port: Number(e.target.value) })} />
-            <label>Пользователь API</label>
+            <label>{t("editRouter.apiUser")}</label>
             <input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-            <label>Новый пароль (оставьте пустым, чтобы не менять)</label>
+            <label>{t("editRouter.newPassword")}</label>
             <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-            <label>Модель (опционально)</label>
+            <label>{t("editRouter.model")}</label>
             <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
             {error && <div className="error-text">{error}</div>}
           </>
         )}
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>Отмена</button>
-          <button className="primary" type="submit" disabled={busy || !form}>{busy ? "Сохраняем…" : "Сохранить"}</button>
+          <button type="button" onClick={onClose}>{t("common.cancel")}</button>
+          <button className="primary" type="submit" disabled={busy || !form}>{busy ? t("common.saving") : t("common.save")}</button>
         </div>
       </form>
     </div>
@@ -1747,6 +1739,7 @@ function EditRouterModal({ router, onClose, onUpdated }: { router: RouterSummary
 }
 
 function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; onDeleted: () => void; onUpdated: () => void }) {
+  const { t } = useTranslation();
   const [path, setPath] = useState("/ip/address");
   const [result, setResult] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -1762,7 +1755,7 @@ function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; on
       const data = await getConfig(router.id, path);
       setResult(JSON.stringify(data, null, 2));
     } catch {
-      setResult("Ошибка: роутер недоступен или путь неверный.");
+      setResult(t("configTab.getError"));
     } finally {
       setBusy(false);
     }
@@ -1773,22 +1766,22 @@ function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; on
     setTestResult(null);
     try {
       await testRouter(router.id);
-      setTestResult({ ok: true, msg: "Роутер отвечает." });
+      setTestResult({ ok: true, msg: t("configTab.testOk") });
     } catch {
-      setTestResult({ ok: false, msg: "Роутер недоступен." });
+      setTestResult({ ok: false, msg: t("configTab.testFail") });
     } finally {
       setTesting(false);
     }
   }
 
   async function runDelete() {
-    if (!confirm(`Удалить роутер «${router.name}»? Это действие необратимо.`)) return;
+    if (!confirm(t("configTab.deleteConfirm", { name: router.name }))) return;
     setDeleting(true);
     try {
       await deleteRouter(router.id);
       onDeleted();
     } catch {
-      setTestResult({ ok: false, msg: "Не удалось удалить роутер. Проверьте права доступа." });
+      setTestResult({ ok: false, msg: t("configTab.deleteError") });
       setDeleting(false);
     }
   }
@@ -1799,7 +1792,7 @@ function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; on
       await updateRouter(router.id, { monitoringEnabled: !router.monitoring_enabled });
       onUpdated();
     } catch {
-      setTestResult({ ok: false, msg: "Не удалось изменить статус мониторинга. Проверьте права доступа." });
+      setTestResult({ ok: false, msg: t("configTab.monitoringError") });
     } finally {
       setTogglingMonitoring(false);
     }
@@ -1809,20 +1802,18 @@ function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; on
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={() => setShowEdit(true)}>Изменить</button>
-          <button onClick={runTest} disabled={testing}>{testing ? "Проверяем…" : "Проверить связь"}</button>
+          <button onClick={() => setShowEdit(true)}>{t("common.edit")}</button>
+          <button onClick={runTest} disabled={testing}>{testing ? t("configTab.testing") : t("configTab.testConnection")}</button>
           <button onClick={toggleMonitoring} disabled={togglingMonitoring}>
-            {togglingMonitoring ? "…" : router.monitoring_enabled ? "Приостановить мониторинг" : "Возобновить мониторинг"}
+            {togglingMonitoring ? "…" : router.monitoring_enabled ? t("configTab.pauseMonitoring") : t("configTab.resumeMonitoring")}
           </button>
           <button onClick={runDelete} disabled={deleting} style={{ borderColor: "var(--red)", color: "var(--red)" }}>
-            {deleting ? "Удаляем…" : "Удалить роутер"}
+            {deleting ? t("common.deleting") : t("configTab.deleteRouter")}
           </button>
         </div>
         {!router.monitoring_enabled && (
           <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-            Мониторинг приостановлен — воркер не опрашивает этот роутер, история метрик не пополняется, статус
-            «up/warn/down» больше не обновляется. Вкладки с live-данными (Firewall, DHCP, Wi-Fi, Терминал, «Настройки»)
-            по-прежнему работают — они ходят к роутеру напрямую.
+            {t("configTab.monitoringOffNote")}
           </p>
         )}
         {testResult && (
@@ -1834,8 +1825,8 @@ function ConfigTab({ router, onDeleted, onUpdated }: { router: RouterSummary; on
       {showEdit && <EditRouterModal router={router} onClose={() => setShowEdit(false)} onUpdated={onUpdated} />}
 
       <p className="muted" style={{ marginBottom: 12 }}>
-        Прямой доступ к любому меню RouterOS REST API — путь как в консоли, например{" "}
-        <code className="mono">/ip/firewall/nat</code> или <code className="mono">/interface/bridge</code>.
+        {t("configTab.directAccessNote")}{" "}
+        <code className="mono">/ip/firewall/nat</code> {t("common.orWord")} <code className="mono">/interface/bridge</code>.
       </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input className="mono" style={{ flex: 1 }} value={path} onChange={(e) => setPath(e.target.value)} />
@@ -1860,7 +1851,7 @@ export default function RouterDetail({ router, onDeleted, onUpdated }: { router:
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", rowGap: 8 }}>
         <div>
           <div style={{ fontWeight: 500 }}>{router.name}</div>
-          <div className="muted mono">{router.host}:{router.port} · {router.model ?? "неизвестная модель"}</div>
+          <div className="muted mono">{router.host}:{router.port} · {router.model ?? t("common.unknownModel")}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <StatusBadge router={router} />

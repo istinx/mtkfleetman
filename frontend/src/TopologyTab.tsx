@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getTopology, Topology, TopologyNode, TopologyApNode, RouterSummary } from "./api";
 import { ClientDetailModal } from "./RouterDetail";
 import { guessDeviceIcon } from "./deviceIcons";
@@ -21,6 +22,33 @@ export interface InspectableNode {
   meta: Record<string, unknown>;
 }
 
+// The backend (topology.ts, networkMap.ts) builds each node's `meta` object
+// with Russian field names, since it used to only ever render in Russian —
+// translating the whole API response shape isn't worth it just for this
+// modal, so translate the known keys here instead. Keys already in English
+// (MAC, IP, SSID, "Rx bps", ...) fall through unchanged.
+const META_KEY_LABELS: Record<string, { en: string; zh: string }> = {
+  "Хост": { en: "Host", zh: "主机" },
+  "Порт": { en: "Port", zh: "端口" },
+  "Модель": { en: "Model", zh: "型号" },
+  "Статус": { en: "Status", zh: "状态" },
+  "Обновлено": { en: "Updated", zh: "更新时间" },
+  "Интерфейс": { en: "Interface", zh: "接口" },
+  "Клиентов сейчас": { en: "Clients now", zh: "当前客户端数" },
+  "Точка доступа": { en: "Access point", zh: "接入点" },
+  "Сигнал, dBm": { en: "Signal, dBm", zh: "信号，dBm" },
+  "Опознанный сосед": { en: "Recognized neighbor", zh: "已识别邻居" },
+  "Устройств за портом": { en: "Devices behind port", zh: "端口后设备数" },
+};
+
+function translateMetaKey(k: string, lang: string): string {
+  const entry = META_KEY_LABELS[k];
+  if (!entry) return k;
+  if (lang === "en") return entry.en;
+  if (lang === "zh") return entry.zh;
+  return k;
+}
+
 function NodeBox({ node, onClick }: { node: TopologyNode; onClick: () => void }) {
   const cls = node.problem === "down" ? "problem-down" : node.problem === "warn" ? "problem-warn" : "";
   // Client nodes carry a DHCP hostname in meta.Хост — guess a more specific
@@ -39,6 +67,7 @@ function NodeBox({ node, onClick }: { node: TopologyNode; onClick: () => void })
 }
 
 export function NodeInfoModal({ node, onClose }: { node: InspectableNode; onClose: () => void }) {
+  const { t, i18n } = useTranslation();
   const entries = Object.entries(node.meta).filter(([, v]) => v !== null && v !== undefined && v !== "");
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -48,14 +77,14 @@ export function NodeInfoModal({ node, onClose }: { node: InspectableNode; onClos
           <table>
             <tbody>
               {entries.map(([k, v]) => (
-                <tr key={k}><td className="muted" style={{ paddingRight: 16 }}>{k}</td><td className="mono">{String(v)}</td></tr>
+                <tr key={k}><td className="muted" style={{ paddingRight: 16 }}>{translateMetaKey(k, i18n.language)}</td><td className="mono">{String(v)}</td></tr>
               ))}
-              {!entries.length && <tr><td className="muted">Нет дополнительных данных.</td></tr>}
+              {!entries.length && <tr><td className="muted">{t("topology.noExtraData")}</td></tr>}
             </tbody>
           </table>
         </div>
         <div className="modal-actions">
-          <button className="primary" onClick={onClose}>Закрыть</button>
+          <button className="primary" onClick={onClose}>{t("common.close")}</button>
         </div>
       </div>
     </div>
@@ -63,6 +92,7 @@ export function NodeInfoModal({ node, onClose }: { node: InspectableNode; onClos
 }
 
 export default function TopologyTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [topo, setTopo] = useState<Topology | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoNode, setInfoNode] = useState<TopologyNode | null>(null);
@@ -72,11 +102,11 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
     let cancelled = false;
     getTopology(router.id)
       .then((d) => !cancelled && setTopo(d))
-      .catch(() => !cancelled && setError("Не удалось загрузить схему сети."));
+      .catch(() => !cancelled && setError(t("topology.loadError")));
     return () => {
       cancelled = true;
     };
-  }, [router.id]);
+  }, [router.id, t]);
 
   function handleClick(node: TopologyNode) {
     if (node.type === "client-wifi") {
@@ -87,20 +117,19 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
   }
 
   if (error) return <p className="muted">{error}</p>;
-  if (!topo) return <p className="muted">Загрузка…</p>;
+  if (!topo) return <p className="muted">{t("common.loading")}</p>;
 
   const hasAnything = topo.channels.length || topo.aps.length || topo.wiredDevices.length || topo.wiredSwitches.length;
 
   return (
     <div>
       <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
-        Собрано из уже опрашиваемых данных — без ping/traceroute и без живых запросов к таблице маршрутов или
-        conntrack. Кликните по любому узлу, чтобы увидеть максимум собранных о нём данных.
+        {t("topology.intro")}
       </p>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>
-          {topo.problems.length ? `Найдено проблем: ${topo.problems.length}` : "Проблем не обнаружено"}
+          {topo.problems.length ? t("topology.problemsFound", { count: topo.problems.length }) : t("topology.noProblems")}
         </div>
         {!!topo.problems.length && (
           <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 160, overflowY: "auto" }}>
@@ -115,8 +144,7 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
 
       {!hasAnything && (
         <p className="muted">
-          Пока нечего показать — либо не отмечены интерфейсы во вкладке «Мониторинг», либо ещё не накопилось данных
-          по Wi-Fi/Ethernet клиентам.
+          {t("topology.nothingYet")}
         </p>
       )}
 
@@ -126,7 +154,7 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
 
           {!!topo.channels.length && (
             <div style={{ marginBottom: 16 }}>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Каналы (провайдер/VPN)</div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>{t("topology.channels")}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {topo.channels.map((n) => <NodeBox key={n.id} node={n} onClick={() => handleClick(n)} />)}
               </div>
@@ -135,7 +163,7 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
 
           {!!topo.wiredDevices.length && (
             <div style={{ marginBottom: 16 }}>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Проводные устройства (точно определены)</div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>{t("topology.wiredDevices")}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {topo.wiredDevices.map((n) => <NodeBox key={n.id} node={n} onClick={() => handleClick(n)} />)}
               </div>
@@ -144,7 +172,7 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
 
           {!!topo.wiredSwitches.length && (
             <div style={{ marginBottom: 16 }}>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Порты с несколькими устройствами / соседями</div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>{t("topology.wiredSwitches")}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {topo.wiredSwitches.map((n) => <NodeBox key={n.id} node={n} onClick={() => handleClick(n)} />)}
               </div>
@@ -153,7 +181,7 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
 
           {!!topo.aps.length && (
             <div>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>Точки доступа и их клиенты</div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>{t("topology.apsAndClients")}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {topo.aps.map((ap: TopologyApNode) => (
                   <div key={ap.id} style={{ borderLeft: "2px solid var(--border-strong)", paddingLeft: 12 }}>
@@ -173,19 +201,19 @@ export default function TopologyTab({ router }: { router: RouterSummary }) {
 
       {!!topo.neighbors.length && (
         <div>
-          <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>Соседи (Neighbor Discovery, справочно)</div>
+          <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>{t("topology.neighbors")}</div>
           <table>
-            <thead><tr><th></th><th>Identity</th><th>Platform</th><th>Адрес</th><th>Порт</th></tr></thead>
+            <thead><tr><th></th><th>Identity</th><th>Platform</th><th>{t("topology.colAddress")}</th><th>{t("topology.colPort")}</th></tr></thead>
             <tbody>
               {topo.neighbors.map((n, i) => (
                 <tr key={i}>
                   <td>
                     <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: n.reachable ? "var(--mint)" : n.reachable === false ? "var(--red)" : "var(--text-muted)" }} />
                   </td>
-                  <td>{n.identity ?? "—"}</td>
-                  <td>{n.platform ?? "—"}</td>
-                  <td className="mono">{n.address ?? "—"}</td>
-                  <td>{n.interface ?? "—"}</td>
+                  <td>{n.identity ?? t("common.dash")}</td>
+                  <td>{n.platform ?? t("common.dash")}</td>
+                  <td className="mono">{n.address ?? t("common.dash")}</td>
+                  <td>{n.interface ?? t("common.dash")}</td>
                 </tr>
               ))}
             </tbody>

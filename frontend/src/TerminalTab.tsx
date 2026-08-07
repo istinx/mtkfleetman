@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -6,6 +7,7 @@ import { getTerminalWsUrl } from "./api";
 import { RouterSummary } from "./api";
 
 export default function TerminalTab({ router, active }: { router: RouterSummary; active: boolean }) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
 
@@ -26,8 +28,8 @@ export default function TerminalTab({ router, active }: { router: RouterSummary;
 
     const ws = new WebSocket(getTerminalWsUrl(router.id));
     ws.onmessage = (ev) => term.write(ev.data);
-    ws.onclose = () => term.write("\r\n\x1b[33m[соединение закрыто]\x1b[0m\r\n");
-    ws.onerror = () => term.write("\r\n\x1b[31m[ошибка соединения]\x1b[0m\r\n");
+    ws.onclose = () => term.write(`\r\n\x1b[33m${t("terminal.closed")}\x1b[0m\r\n`);
+    ws.onerror = () => term.write(`\r\n\x1b[31m${t("terminal.connError")}\x1b[0m\r\n`);
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(data);
     });
@@ -52,8 +54,7 @@ export default function TerminalTab({ router, active }: { router: RouterSummary;
   return (
     <div>
       <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-        Обычный терминал RouterOS по SSH — работает копипаста (выделение мышью копирует, правый клик/Ctrl+V вставляет).
-        Использует те же логин/пароль, что заданы для REST API этого роутера.
+        {t("terminal.intro")}
       </p>
       <div ref={containerRef} style={{ height: "calc(100vh - 260px)", minHeight: 480, background: "#10161b", borderRadius: 8, padding: 8 }} />
     </div>
