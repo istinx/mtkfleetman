@@ -15,7 +15,7 @@ import {
   getLogs,
   LogEntry,
 } from "./api";
-import RouterDetail from "./RouterDetail";
+import RouterDetail, { StatusBadge } from "./RouterDetail";
 import NetworkMap from "./NetworkMap";
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
@@ -470,7 +470,23 @@ function DocsPanel({ onClose }: { onClose: () => void }) {
           </pre>
 
           <h3 style={{ fontSize: 14 }}>7. Для DHCP-статистики</h3>
-          <p className="muted">Просто должен быть настроен DHCP-сервер (<code>/ip dhcp-server</code>) — данные читаются, ничего включать дополнительно не нужно.</p>
+          <p className="muted">Просто должен быть настроен DHCP-сервер (<code>/ip dhcp-server</code>) — данные читаются, ничего включать дополнительно не нужно. Заполненность пула на вкладке «DHCP» дополнительно читает <code>/ip pool</code> — тоже без отдельной настройки, если пул уже используется сервером.</p>
+
+          <h3 style={{ fontSize: 14 }}>8. Для «Топ по блокировкам» (вкладка Firewall)</h3>
+          <p className="muted">
+            Без этого шага список останется пустым — приложение ничего не подставляет само, только читает системный
+            лог. Включите <code>log=yes</code> на тех правилах firewall, чью статистику блокировок хотите видеть
+            (обычно — drop/reject в конце цепочки <code>input</code>/<code>forward</code>):
+          </p>
+          <pre className="mono" style={{ background: "var(--surface-2)", padding: 10, borderRadius: 8, fontSize: 12, overflowX: "auto" }}>
+{`/ip firewall filter set [find chain=input action=drop] log=yes log-prefix="drop-input"`}
+          </pre>
+          <p className="muted">
+            Воркер опрашивает <code>/log</code> с фильтром по теме <code>firewall</code> и вытаскивает
+            IP-адрес источника из строки лога — работает со стандартным форматом RouterOS
+            (<code>src-ip:port-&gt;dst-ip:port</code> в тексте сообщения). Нестандартный <code>log-prefix</code> не
+            мешает — просто не участвует в разборе.
+          </p>
 
           <h3 style={{ fontSize: 14 }}>Частые проблемы</h3>
           <ul className="muted" style={{ paddingLeft: 18 }}>
@@ -590,12 +606,12 @@ function Dashboard() {
           {routers.map((r) => (
             <div
               key={r.id}
-              className={`router-card ${selected?.id === r.id ? "active" : ""} ${r.status === "down" ? "blink" : ""}`}
+              className={`router-card ${selected?.id === r.id ? "active" : ""} ${r.monitoring_enabled && r.status === "down" ? "blink" : ""}`}
               onClick={() => setSelected(r)}
             >
               <div className="rname">{r.name}</div>
               <div className="rhost mono">{r.host}</div>
-              <span className={`badge ${r.status}`}>{r.status}</span>
+              <StatusBadge router={r} />
             </div>
           ))}
         </div>
@@ -607,6 +623,7 @@ function Dashboard() {
               setSelected(null);
               refresh();
             }}
+            onUpdated={refresh}
           />
         )}
       </div>

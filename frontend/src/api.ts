@@ -47,6 +47,7 @@ export interface RouterSummary {
   model: string | null;
   status: "up" | "warn" | "down" | "unknown";
   last_seen: string | null;
+  monitoring_enabled: boolean;
 }
 
 export async function login(username: string, password: string) {
@@ -75,6 +76,40 @@ export async function createRouter(payload: {
 
 export async function testRouter(id: string) {
   const { data } = await api.post(`/routers/${id}/test`);
+  return data;
+}
+
+export interface RouterDetailFull extends RouterSummary {
+  username: string;
+}
+
+export async function getRouter(id: string) {
+  const { data } = await api.get<RouterDetailFull>(`/routers/${id}`);
+  return data;
+}
+
+export interface RouterStatusReason {
+  status: string;
+  downInterfaces: { interface_name: string; status: string; time: string }[];
+  events: { message: string; meta: unknown; created_at: string }[];
+}
+
+export async function getRouterStatusReason(id: string) {
+  const { data } = await api.get<RouterStatusReason>(`/routers/${id}/status-reason`);
+  return data;
+}
+
+export async function updateRouter(id: string, payload: {
+  name?: string;
+  host?: string;
+  port?: number;
+  useTls?: boolean;
+  username?: string;
+  password?: string;
+  model?: string;
+  monitoringEnabled?: boolean;
+}) {
+  const { data } = await api.patch(`/routers/${id}`, payload);
   return data;
 }
 
@@ -115,12 +150,19 @@ export interface WifiTopClient {
   ap: string | null;
   ssid: string | null;
   signal: number | null;
+  avgBps: number;
+  peakBps: number;
   latest: { rx_bps: number; tx_bps: number; rx_pps: number | null; tx_pps: number | null; time: string };
   series: { time: string; rx_bps: number; tx_bps: number; rx_pps: number | null; tx_pps: number | null }[];
 }
 
+export interface WifiTopClientsResponse {
+  clients: WifiTopClient[];
+  peakTotalBps: number;
+}
+
 export async function getTopWifiClients(id: string, hours = 24, limit = 15) {
-  const { data } = await api.get<WifiTopClient[]>(`/routers/${id}/clients/wifi/top`, { params: { hours, limit } });
+  const { data } = await api.get<WifiTopClientsResponse>(`/routers/${id}/clients/wifi/top`, { params: { hours, limit } });
   return data;
 }
 
@@ -175,6 +217,18 @@ export async function getTopEthernetClients(id: string, hours = 24, limit = 15) 
   return data;
 }
 
+export interface EthernetDestinations {
+  ip: string | null;
+  topDestinations: ClientDestination[];
+}
+
+export async function getEthernetClientDestinations(routerId: string, mac: string) {
+  const { data } = await api.get<EthernetDestinations>(
+    `/routers/${routerId}/clients/ethernet/${encodeURIComponent(mac)}/destinations`
+  );
+  return data;
+}
+
 export interface Me {
   id: string;
   username: string;
@@ -223,6 +277,74 @@ export async function getFirewallRules(id: string) {
 export async function getDhcpLeases(id: string) {
   const { data } = await api.get(`/routers/${id}/dhcp/leases`);
   return data as any[];
+}
+
+export interface DhcpPoolUsage {
+  server: string;
+  pool: string;
+  ranges: string | null;
+  capacity: number;
+  used: number;
+  percent: number | null;
+}
+
+export async function getDhcpPoolUsage(id: string) {
+  const { data } = await api.get<DhcpPoolUsage[]>(`/routers/${id}/dhcp/pool-usage`);
+  return data;
+}
+
+export interface DeviceEvent {
+  mac_address: string;
+  ip_address: string | null;
+  hostname: string | null;
+  event_type: "online" | "offline";
+  created_at: string;
+}
+
+export async function getDeviceEvents(id: string, hours = 24, limit = 50) {
+  const { data } = await api.get<DeviceEvent[]>(`/routers/${id}/device-events`, { params: { hours, limit } });
+  return data;
+}
+
+export interface TopBlockedEntry {
+  ip: string;
+  hits: number;
+  firstSeen: string;
+  lastSeen: string;
+  hostname: string | null;
+  mac: string | null;
+}
+
+export async function getTopBlocked(id: string, hours = 24, limit = 15) {
+  const { data } = await api.get<{ entries: TopBlockedEntry[] }>(`/routers/${id}/security/top-blocked`, {
+    params: { hours, limit },
+  });
+  return data.entries;
+}
+
+export interface TopDestinationSource {
+  ip: string;
+  hostname: string | null;
+  mac: string | null;
+  bytes: number;
+  connections: number;
+}
+
+export interface TopDestination {
+  ip: string;
+  hostname: string | null;
+  port: string | null;
+  protocol: string | null;
+  bytes: number;
+  connections: number;
+  sources: TopDestinationSource[];
+}
+
+export async function getTopDestinations(id: string, limit = 20) {
+  const { data } = await api.get<{ destinations: TopDestination[] }>(`/routers/${id}/security/top-destinations`, {
+    params: { limit },
+  });
+  return data.destinations;
 }
 
 export async function getWifiClients(id: string) {

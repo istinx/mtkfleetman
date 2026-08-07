@@ -272,21 +272,105 @@ async function processEthernetClients(
 // Tracks when each MAC/IP was first seen via DHCP — a plain upsert, no
 // delta/rate logic, no extra fetch (reuses the leases already fetched for
 // this cycle).
+// Every poll: upsert last_seen_at for currently-leased MACs, and emit a
+// device_events row whenever a device is genuinely new or was previously
+// marked offline (i.e. transitioning back to online) — not on every routine
+// bump. Separately, anything that was online but has aged out of the
+// current lease list gets flipped offline and gets its own event. Together
+// this turns the static "first/last seen" columns into an actual timeline
+// for the DHCP tab.
 async function processDhcpFirstSeen(router: RouterRow, leases: any[]) {
   try {
+    const currentMacs: string[] = [];
     for (const l of leases) {
       const mac = String(l["mac-address"] ?? "").toUpperCase();
       if (!mac) continue;
-      await pool.query(
-        `INSERT INTO dhcp_first_seen (router_id, mac_address, ip_address, hostname, first_seen_at, last_seen_at)
-         VALUES ($1,$2,$3,$4, now(), now())
+      currentMacs.push(mac);
+      const ip = l.address ?? null;
+      const hostname = l["host-name"] ?? null;
+
+      const { rows } = await pool.query(
+        `WITH old AS (SELECT online FROM dhcp_first_seen WHERE router_id = $1 AND mac_address = $2)
+         INSERT INTO dhcp_first_seen (router_id, mac_address, ip_address, hostname, first_seen_at, last_seen_at, online)
+         VALUES ($1,$2,$3,$4, now(), now(), true)
          ON CONFLICT (router_id, mac_address)
-         DO UPDATE SET ip_address = $3, hostname = $4, last_seen_at = now()`,
-        [router.id, mac, l.address ?? null, l["host-name"] ?? null]
+         DO UPDATE SET ip_address = $3, hostname = $4, last_seen_at = now(), online = true
+         RETURNING (xmax = 0) AS is_new, (SELECT online FROM old) AS was_online_before`,
+        [router.id, mac, ip, hostname]
       );
+      const { is_new, was_online_before } = rows[0];
+      if (is_new || was_online_before === false) {
+        await pool.query(
+          `INSERT INTO device_events (router_id, mac_address, ip_address, hostname, event_type) VALUES ($1,$2,$3,$4,'online')`,
+          [router.id, mac, ip, hostname]
+        );
+      }
+    }
+
+    // Grace period covers a couple of missed cycles (this runs every 4th
+    // tick) before declaring a device offline, so one slow/failed lease
+    // fetch doesn't flap the feed.
+    const { rows: goneOffline } = await pool.query(
+      `UPDATE dhcp_first_seen
+       SET online = false
+       WHERE router_id = $1 AND online = true
+         AND mac_address <> ALL($2::text[])
+         AND last_seen_at < now() - interval '2 minutes'
+       RETURNING mac_address, ip_address, hostname`,
+      [router.id, currentMacs]
+    );
+    for (const r of goneOffline) {
+      await pool.query(
+        `INSERT INTO device_events (router_id, mac_address, ip_address, hostname, event_type) VALUES ($1,$2,$3,$4,'offline')`,
+        [router.id, r.mac_address, r.ip_address, r.hostname]
+      );
+    }
+    if (Math.random() < 0.05) {
+      await pool.query("DELETE FROM device_events WHERE created_at < now() - interval '30 days'");
     }
   } catch (err: any) {
     await logEvent("worker", "warn", `DHCP first-seen poll failed for "${router.name}"`, {
+      error: err?.message ?? String(err),
+    }, router.id);
+  }
+}
+
+// Firewall drop/reject log ingestion — only produces anything once the user
+// sets log=yes on the relevant rules on the router itself (see README).
+// Dedup is an in-memory "IDs seen in the last fetch" set per router, not a
+// persisted cursor — same trade-off as deriveRate()'s in-memory counters:
+// resets on worker restart, so a restart can re-import whatever's currently
+// sitting in the router's (small, rotating) log buffer once. Bounded and
+// self-limiting, not worth a persisted cursor for.
+const lastSeenLogIds = new Map<string, Set<string>>();
+
+async function processFirewallLog(router: RouterRow, client: ReturnType<typeof clientFor>) {
+  try {
+    const entries = (await client.getLog("firewall")) as any[];
+    if (!Array.isArray(entries) || !entries.length) return;
+
+    const seen = lastSeenLogIds.get(router.id) ?? new Set<string>();
+    const fresh = entries.filter((e) => e[".id"] && !seen.has(e[".id"]));
+    lastSeenLogIds.set(router.id, new Set(entries.map((e) => e[".id"]).filter(Boolean)));
+    if (!fresh.length) return;
+
+    for (const e of fresh) {
+      const message = String(e.message ?? "");
+      // RouterOS firewall log lines embed "src-ip:port->dst-ip:port" when
+      // logging a connection — pull the source address out for
+      // aggregation. A rule without that exact shape (custom log-prefix,
+      // non-connection log) just stores the raw message with src_ip null.
+      const match = message.match(/(\d{1,3}(?:\.\d{1,3}){3}):\d+->/);
+      await pool.query(
+        `INSERT INTO firewall_log_events (router_id, src_ip, message, topics) VALUES ($1,$2,$3,$4)`,
+        [router.id, match ? match[1] : null, message, e.topics ?? null]
+      );
+    }
+    if (Math.random() < 0.05) {
+      await pool.query("DELETE FROM firewall_log_events WHERE created_at < now() - interval '14 days'");
+    }
+  } catch (err: any) {
+    await logEvent("worker", "warn", `Firewall log poll failed for "${router.name}"`, {
       error: err?.message ?? String(err),
     }, router.id);
   }
@@ -335,6 +419,7 @@ async function pollAllForRouter(router: RouterRow, tick: number) {
   // that are already under heavy CPU load (e.g. a full BGP table).
   await processWifiClients(router, client, now, leases, arp);
   if (tick % 2 === 0) await processEthernetClients(router, client, now, interfaces, leases, arp);
+  if (tick % 2 === 0) await processFirewallLog(router, client);
   if (tick % 4 === 0) await processDhcpFirstSeen(router, leases);
 }
 
@@ -345,7 +430,7 @@ new Worker(
   "router-poll",
   async () => {
     tick += 1;
-    const { rows } = await pool.query<RouterRow>("SELECT * FROM routers");
+    const { rows } = await pool.query<RouterRow>("SELECT * FROM routers WHERE monitoring_enabled = true");
     for (let i = 0; i < rows.length; i += CONCURRENCY) {
       const batch = rows.slice(i, i + CONCURRENCY);
       await Promise.allSettled(batch.map((r) => pollAllForRouter(r, tick)));

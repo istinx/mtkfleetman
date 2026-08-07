@@ -14,6 +14,7 @@ export interface RouterRow {
   model: string | null;
   status: string;
   last_seen: Date | null;
+  monitoring_enabled: boolean;
 }
 
 export async function getRouterForTenant(tenantId: string, routerId: string): Promise<RouterRow | null> {

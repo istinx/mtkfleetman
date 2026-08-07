@@ -18,6 +18,7 @@ import logsRoutes from "./routes/logs";
 import terminalRoutes from "./routes/terminal";
 import topologyRoutes from "./routes/topology";
 import networkMapRoutes from "./routes/networkMap";
+import securityRoutes from "./routes/security";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -42,6 +43,7 @@ async function main() {
   await app.register(terminalRoutes);
   await app.register(topologyRoutes);
   await app.register(networkMapRoutes);
+  await app.register(securityRoutes);
 
   app.get("/health", async () => ({ ok: true }));
 

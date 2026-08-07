@@ -6,6 +6,10 @@ import { parseUptime } from "../mikrotik/parse";
 import { getVendorForMac } from "../services/macVendor";
 import { logEvent } from "../logging/dbLog";
 
+// A device with no metrics sample newer than this is treated as no longer
+// registered on the network and dropped from the "top consumers" lists.
+const ONLINE_WINDOW = "1 hour";
+
 export default async function clientsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", app.authenticate);
 
@@ -19,6 +23,11 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const hours = Number(req.query.hours ?? 24);
       const limit = Math.min(Number(req.query.limit ?? 15), 50);
 
+      // Rank by average combined throughput over the selected window (actual
+      // consumption), not the latest instantaneous sample — a device idle
+      // right now but heavy over the last 24h should still show up first.
+      // Devices whose most recent sample is older than ONLINE_WINDOW are
+      // treated as no longer registered on the network and dropped entirely.
       const { rows: latest } = await pool.query(
         `WITH latest AS (
            SELECT DISTINCT ON (mac_address)
@@ -26,12 +35,23 @@ export default async function clientsRoutes(app: FastifyInstance) {
            FROM wifi_client_metrics
            WHERE router_id = $1
            ORDER BY mac_address, time DESC
+         ),
+         consumption AS (
+           SELECT mac_address, AVG(rx_bps + tx_bps) AS avg_bps, MAX(rx_bps + tx_bps) AS max_bps
+           FROM wifi_client_metrics
+           WHERE router_id = $1 AND time > now() - ($3 || ' hours')::interval
+           GROUP BY mac_address
          )
-         SELECT * FROM latest ORDER BY (rx_bps + tx_bps) DESC LIMIT $2`,
-        [router.id, limit]
+         SELECT latest.*, COALESCE(consumption.avg_bps, 0) AS avg_bps, COALESCE(consumption.max_bps, 0) AS max_bps
+         FROM latest
+         LEFT JOIN consumption ON consumption.mac_address = latest.mac_address
+         WHERE latest.time > now() - interval '${ONLINE_WINDOW}'
+         ORDER BY avg_bps DESC
+         LIMIT $2`,
+        [router.id, limit, hours]
       );
 
-      if (!latest.length) return [];
+      if (!latest.length) return { clients: [], peakTotalBps: 0 };
 
       const macs = latest.map((r) => r.mac_address);
       const { rows: series } = await pool.query(
@@ -42,23 +62,43 @@ export default async function clientsRoutes(app: FastifyInstance) {
         [router.id, macs, hours]
       );
 
+      // Peak overall traffic: the busiest single poll tick across ALL Wi-Fi
+      // clients (not just the top N) in the selected window — used by the UI
+      // as the top of the color scale so a card's color reflects how close
+      // that device came to the network's own busiest moment.
+      const { rows: peakRows } = await pool.query(
+        `SELECT MAX(total) AS peak FROM (
+           SELECT time, SUM(rx_bps + tx_bps) AS total
+           FROM wifi_client_metrics
+           WHERE router_id = $1 AND time > now() - ($2 || ' hours')::interval
+           GROUP BY time
+         ) t`,
+        [router.id, hours]
+      );
+      const peakTotalBps = Number(peakRows[0]?.peak ?? 0);
+
       const seriesByMac = new Map<string, { time: string; rx_bps: number; tx_bps: number; rx_pps: number; tx_pps: number }[]>();
       for (const row of series) {
         if (!seriesByMac.has(row.mac_address)) seriesByMac.set(row.mac_address, []);
         seriesByMac.get(row.mac_address)!.push({ time: row.time, rx_bps: row.rx_bps, tx_bps: row.tx_bps, rx_pps: row.rx_pps, tx_pps: row.tx_pps });
       }
 
-      return latest.map((r) => ({
-        key: r.mac_address,
-        mac: r.mac_address,
-        ip: r.ip_address,
-        hostname: r.hostname,
-        ap: r.ap_identity,
-        ssid: r.ssid,
-        signal: r.rx_signal,
-        latest: { rx_bps: r.rx_bps, tx_bps: r.tx_bps, rx_pps: r.rx_pps, tx_pps: r.tx_pps, time: r.time },
-        series: seriesByMac.get(r.mac_address) ?? [],
-      }));
+      return {
+        clients: latest.map((r) => ({
+          key: r.mac_address,
+          mac: r.mac_address,
+          ip: r.ip_address,
+          hostname: r.hostname,
+          ap: r.ap_identity,
+          ssid: r.ssid,
+          signal: r.rx_signal,
+          avgBps: Number(r.avg_bps),
+          peakBps: Number(r.max_bps),
+          latest: { rx_bps: r.rx_bps, tx_bps: r.tx_bps, rx_pps: r.rx_pps, tx_pps: r.tx_pps, time: r.time },
+          series: seriesByMac.get(r.mac_address) ?? [],
+        })),
+        peakTotalBps,
+      };
     }
   );
 
@@ -82,7 +122,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
            WHERE router_id = $1
            ORDER BY client_key, time DESC
          )
-         SELECT * FROM latest ORDER BY (rx_bps + tx_bps) DESC LIMIT $2`,
+         SELECT * FROM latest WHERE time > now() - interval '${ONLINE_WINDOW}' ORDER BY (rx_bps + tx_bps) DESC LIMIT $2`,
         [router.id, limit]
       );
 
@@ -115,6 +155,53 @@ export default async function clientsRoutes(app: FastifyInstance) {
         latest: { rx_bps: r.rx_bps, tx_bps: r.tx_bps, time: r.time },
         series: seriesByKey.get(r.client_key) ?? [],
       }));
+    }
+  );
+
+  // Ethernet client "top destinations" — same idea as the Wi-Fi client
+  // detail's breakdown below, just without the CAPsMAN registration lookup
+  // (a wired client has no signal/PHY-rate to show). Only meaningful for a
+  // client_key we can resolve to a single IP, i.e. confidence "exact" on
+  // the Топ Ethernet list — the key there IS the mac address in that case.
+  app.get<{ Params: { id: string; mac: string } }>(
+    "/routers/:id/clients/ethernet/:mac/destinations",
+    async (req, reply) => {
+      const router = await getRouterForTenant(authUser(req).tenantId, req.params.id);
+      if (!router) return reply.code(404).send({ error: "Not found" });
+      const mac = req.params.mac.toUpperCase();
+      const rc = clientFor(router);
+
+      const [leasesRes, arpRes] = await Promise.allSettled([rc.getDhcpLeases(), rc.getArpTable()]);
+      const leases = leasesRes.status === "fulfilled" ? (leasesRes.value as any[]) : [];
+      const arp = arpRes.status === "fulfilled" ? (arpRes.value as any[]) : [];
+      const lease = leases.find((l) => String(l["mac-address"] ?? "").toUpperCase() === mac);
+      const arpEntry = arp.find((a) => String(a["mac-address"] ?? "").toUpperCase() === mac);
+      const ip = lease?.address || arpEntry?.address || null;
+      if (!ip) return { ip: null, topDestinations: [] };
+
+      try {
+        const connections = (await rc.getFirewallConnections(ip)) as any[];
+        const byDest = new Map<string, { port: string | null; protocol: string | null; bytes: number; count: number }>();
+        for (const c of connections) {
+          const dstIp = String(c["dst-address"] ?? "");
+          if (!dstIp) continue;
+          const bytes = Number(c["orig-bytes"] ?? 0) + Number(c["repl-bytes"] ?? 0);
+          const entry = byDest.get(dstIp) ?? { port: c["dst-port"] ?? null, protocol: c.protocol ?? null, bytes: 0, count: 0 };
+          entry.bytes += bytes;
+          entry.count += 1;
+          byDest.set(dstIp, entry);
+        }
+        const topDestinations = [...byDest.entries()]
+          .sort((a, b) => b[1].bytes - a[1].bytes || b[1].count - a[1].count)
+          .slice(0, 10)
+          .map(([dstIp, info]) => ({ ip: dstIp, port: info.port, protocol: info.protocol, bytes: info.bytes, connections: info.count }));
+        return { ip, topDestinations };
+      } catch (err: any) {
+        await logEvent("api", "warn", `Ethernet client destinations lookup failed for ${mac} on "${router.name}"`, {
+          error: err?.message ?? String(err),
+        }, router.id);
+        return { ip, topDestinations: [] };
+      }
     }
   );
 

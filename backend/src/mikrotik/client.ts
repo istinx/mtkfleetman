@@ -90,11 +90,35 @@ export class MikroTikClient {
   // Connection tracking table, optionally filtered server-side by source
   // address — asking RouterOS to filter is far cheaper than pulling
   // everything and filtering in Node, especially on a router with a large
-  // active connection count.
+  // active connection count. When called with no filter (top-destinations
+  // view needs the whole table), always restrict to the few fields we
+  // actually use via .proplist — full-field serialization of a big
+  // conntrack table is what made the old per-channel classification
+  // feature slow enough to time out the router's own REST server.
   async getFirewallConnections(srcAddress?: string) {
-    const { data } = await this.http.get("/ip/firewall/connection", {
-      params: srcAddress ? { "src-address": srcAddress } : undefined,
-    });
+    const params: Record<string, string> = srcAddress ? { "src-address": srcAddress } : {};
+    if (!srcAddress) params[".proplist"] = "src-address,dst-address,dst-port,protocol,orig-bytes,repl-bytes";
+    const { data } = await this.http.get("/ip/firewall/connection", { params });
+    return data;
+  }
+
+  // System log, optionally filtered server-side by topic (e.g. "firewall")
+  // — same reasoning as the connection table: let RouterOS do the
+  // filtering instead of pulling the whole ring buffer.
+  async getLog(topics?: string) {
+    const { data } = await this.http.get("/log", { params: topics ? { topics } : undefined });
+    return data;
+  }
+
+  // IP pools (address ranges) and DHCP servers (which pool each one draws
+  // from) — used to compute lease pool utilization on the DHCP tab.
+  async getIpPools() {
+    const { data } = await this.http.get("/ip/pool");
+    return data;
+  }
+
+  async getDhcpServers() {
+    const { data } = await this.http.get("/ip/dhcp-server");
     return data;
   }
 

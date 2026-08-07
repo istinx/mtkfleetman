@@ -28,6 +28,7 @@ CREATE TABLE routers (
   model TEXT,
   status TEXT NOT NULL DEFAULT 'unknown', -- up | warn | down | unknown
   last_seen TIMESTAMPTZ,
+  monitoring_enabled BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -140,8 +141,40 @@ CREATE TABLE dhcp_first_seen (
   hostname TEXT,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  online BOOLEAN NOT NULL DEFAULT true,
   PRIMARY KEY (router_id, mac_address)
 );
+
+-- Transition history for dhcp_first_seen.online — one row per "device
+-- appeared" / "device disappeared" event, so the DHCP tab can show a feed
+-- instead of just a static "last seen" column. See worker.ts
+-- processDhcpFirstSeen for how online/offline is decided.
+CREATE TABLE device_events (
+  id BIGSERIAL PRIMARY KEY,
+  router_id UUID NOT NULL REFERENCES routers(id) ON DELETE CASCADE,
+  mac_address TEXT NOT NULL,
+  ip_address TEXT,
+  hostname TEXT,
+  event_type TEXT NOT NULL, -- 'online' | 'offline'
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_device_events_router_time ON device_events(router_id, created_at DESC);
+
+-- Firewall drop/reject hits, parsed from RouterOS /log entries for rules
+-- that have log=yes set (not set by this app — see README/Документация for
+-- the config step). Populated by worker.ts processFirewallLog. Not a
+-- hypertable — volume is low enough for a plain indexed table with
+-- opportunistic cleanup (see logging/dbLog.ts pattern).
+CREATE TABLE firewall_log_events (
+  id BIGSERIAL PRIMARY KEY,
+  router_id UUID NOT NULL REFERENCES routers(id) ON DELETE CASCADE,
+  src_ip TEXT,
+  message TEXT NOT NULL,
+  topics TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_firewall_log_events_router_time ON firewall_log_events(router_id, created_at DESC);
+CREATE INDEX idx_firewall_log_events_router_src ON firewall_log_events(router_id, src_ip);
 
 -- Application logs (api + worker), viewable in the UI so problems can be
 -- diagnosed/copied without SSHing into the server. Not a replacement for

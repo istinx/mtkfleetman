@@ -14,6 +14,10 @@ interface CreateRouterBody {
   model?: string;
 }
 
+interface UpdateRouterBody extends Partial<CreateRouterBody> {
+  monitoringEnabled?: boolean;
+}
+
 export default async function routerRoutes(app: FastifyInstance) {
   app.addHook("preHandler", app.authenticate);
 
@@ -21,7 +25,7 @@ export default async function routerRoutes(app: FastifyInstance) {
   app.get("/routers", async (req) => {
     const { tenantId } = authUser(req);
     const { rows } = await pool.query(
-      `SELECT id, name, host, port, use_tls, model, status, last_seen
+      `SELECT id, name, host, port, use_tls, model, status, last_seen, monitoring_enabled
        FROM routers WHERE tenant_id = $1 ORDER BY name`,
       [tenantId]
     );
@@ -53,8 +57,8 @@ export default async function routerRoutes(app: FastifyInstance) {
     return safe;
   });
 
-  // Update router metadata / credentials
-  app.patch<{ Params: { id: string }; Body: Partial<CreateRouterBody> }>(
+  // Update router metadata / credentials / monitoring toggle
+  app.patch<{ Params: { id: string }; Body: UpdateRouterBody }>(
     "/routers/:id",
     async (req, reply) => {
       if (authUser(req).role === "viewer") return reply.code(403).send({ error: "Forbidden" });
@@ -72,6 +76,7 @@ export default async function routerRoutes(app: FastifyInstance) {
       if (b.username) { fields.push(`username = $${i++}`); values.push(b.username); }
       if (b.password) { fields.push(`password_encrypted = $${i++}`); values.push(encryptSecret(b.password)); }
       if (b.model !== undefined) { fields.push(`model = $${i++}`); values.push(b.model); }
+      if (b.monitoringEnabled !== undefined) { fields.push(`monitoring_enabled = $${i++}`); values.push(b.monitoringEnabled); }
       if (!fields.length) return reply.code(400).send({ error: "No fields to update" });
 
       values.push(router.id);
@@ -88,6 +93,49 @@ export default async function routerRoutes(app: FastifyInstance) {
       authUser(req).tenantId,
     ]);
     return reply.code(204).send();
+  });
+
+  // Why is the status badge warn/down? Cheap enough to compute on click
+  // (no live router call) — open to any tenant role, not just admin, since
+  // it's just an explanation of a badge already visible to everyone.
+  app.get<{ Params: { id: string } }>("/routers/:id/status-reason", async (req, reply) => {
+    const router = await getRouterForTenant(authUser(req).tenantId, req.params.id);
+    if (!router) return reply.code(404).send({ error: "Not found" });
+
+    if (router.status === "down") {
+      const { rows } = await pool.query(
+        `SELECT message, meta, created_at FROM app_log
+         WHERE router_id = $1 AND service = 'worker' AND level IN ('warn', 'error')
+         ORDER BY created_at DESC LIMIT 5`,
+        [router.id]
+      );
+      return { status: router.status, downInterfaces: [], events: rows };
+    }
+
+    if (router.status === "warn") {
+      // Same "watched interfaces, else all" rule the poller uses to decide
+      // warn in the first place (worker.ts processRouterMetrics) — only the
+      // latest sample per interface matters, filtered to the watch list if
+      // one is set.
+      const { rows } = await pool.query(
+        `WITH latest AS (
+           SELECT DISTINCT ON (interface_name) interface_name, status, time
+           FROM interface_metrics WHERE router_id = $1
+           ORDER BY interface_name, time DESC
+         ), watched AS (
+           SELECT interface_name FROM watched_interfaces WHERE router_id = $1
+         )
+         SELECT latest.interface_name, latest.status, latest.time
+         FROM latest
+         WHERE latest.status = 'down'
+           AND (NOT EXISTS (SELECT 1 FROM watched) OR latest.interface_name IN (SELECT interface_name FROM watched))
+         ORDER BY latest.interface_name`,
+        [router.id]
+      );
+      return { status: router.status, downInterfaces: rows, events: [] };
+    }
+
+    return { status: router.status, downInterfaces: [], events: [] };
   });
 
   // On-demand connectivity check against the live router

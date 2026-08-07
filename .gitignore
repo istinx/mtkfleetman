@@ -1,0 +1,16 @@
+# Secrets — never commit the real .env, only .env.example
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+backend/dist/
+frontend/dist/
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+*.log
