@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, ReactNode, Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import Chart from "chart.js/auto";
+import { guessDeviceIcon } from "./deviceIcons";
 import TerminalTab from "./TerminalTab";
 import TopologyTab from "./TopologyTab";
 import {
@@ -782,6 +783,7 @@ function WifiClientCard({
   onDetail: (mac: string) => void;
 }) {
   const title = client.hostname || client.ip || client.mac;
+  const icon = guessDeviceIcon(client.hostname) ?? "📱";
   const subtitleParts = [
     client.hostname && client.ip ? client.ip : null,
     client.mac,
@@ -794,7 +796,7 @@ function WifiClientCard({
   return (
     <div className="card" style={{ marginBottom: 0, borderLeft: `3px solid ${heat}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <strong style={{ fontSize: 13 }}>{title}</strong>
+        <strong style={{ fontSize: 13 }}>{icon} {title}</strong>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span
             className="mono"
@@ -871,6 +873,7 @@ function EthernetDestinationsModal({ router, mac, onClose }: { router: RouterSum
 function EthernetClientCard({ client, color, router }: { client: EthernetTopClient; color: string; router: RouterSummary }) {
   const [showDest, setShowDest] = useState(false);
   const title = client.confidence === "exact" ? client.hostname || client.ip || client.mac || client.port : `Порт ${client.port}`;
+  const icon = client.confidence === "exact" ? guessDeviceIcon(client.hostname) ?? "🖥" : "🔌";
   const subtitleParts = [
     client.confidence === "exact" && client.ip ? client.ip : null,
     client.confidence === "exact" ? client.mac : null,
@@ -882,7 +885,7 @@ function EthernetClientCard({ client, color, router }: { client: EthernetTopClie
   return (
     <div className="card" style={{ marginBottom: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <strong style={{ fontSize: 13 }}>{title}</strong>
+        <strong style={{ fontSize: 13 }}>{icon} {title}</strong>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {client.confidence === "exact" && client.mac && (
             <button onClick={() => setShowDest(true)} style={{ fontSize: 11, padding: "3px 8px" }}>Детально</button>
@@ -1489,7 +1492,7 @@ function DhcpTab({ router }: { router: RouterSummary }) {
               <tr key={i}>
                 <td className="mono">{l.address}</td>
                 <td className="mono">{l["mac-address"]}</td>
-                <td>{l["host-name"] ?? "—"}</td>
+                <td>{l["host-name"] ? `${guessDeviceIcon(l["host-name"]) ?? "❔"} ${l["host-name"]}` : "—"}</td>
                 <td>{l.status}</td>
                 <td className="mono" style={{ fontSize: 11 }}>
                   {l["first-seen"] ? new Date(l["first-seen"]).toLocaleString() : "—"}
@@ -1543,7 +1546,7 @@ function DeviceEventsPanel({ router }: { router: RouterSummary }) {
               <span className={`badge ${e.event_type === "online" ? "up" : "down"}`}>
                 {e.event_type === "online" ? "появилось" : "пропало"}
               </span>
-              <span>{e.hostname || e.ip_address || e.mac_address}</span>
+              <span>{guessDeviceIcon(e.hostname) ?? "❔"} {e.hostname || e.ip_address || e.mac_address}</span>
               <span className="muted mono" style={{ fontSize: 11 }}>{e.mac_address}</span>
               <span className="muted mono" style={{ fontSize: 11, marginLeft: "auto" }}>{new Date(e.created_at).toLocaleString()}</span>
             </div>
@@ -1651,7 +1654,7 @@ function TopDestinationsTab({ router }: { router: RouterSummary }) {
                             {d.sources.map((s) => (
                               <tr key={s.ip}>
                                 <td className="mono">
-                                  {s.hostname ?? s.ip}
+                                  {guessDeviceIcon(s.hostname) ?? "❔"} {s.hostname ?? s.ip}
                                   {s.hostname && <span className="muted"> ({s.ip})</span>}
                                 </td>
                                 <td className="mono">{s.mac ?? "—"}</td>

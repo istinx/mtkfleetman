@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getTopology, Topology, TopologyNode, TopologyApNode, RouterSummary } from "./api";
 import { ClientDetailModal } from "./RouterDetail";
+import { guessDeviceIcon } from "./deviceIcons";
 
 export const ICON: Record<string, string> = {
   cloud: "☁",
@@ -22,9 +23,16 @@ export interface InspectableNode {
 
 function NodeBox({ node, onClick }: { node: TopologyNode; onClick: () => void }) {
   const cls = node.problem === "down" ? "problem-down" : node.problem === "warn" ? "problem-warn" : "";
+  // Client nodes carry a DHCP hostname in meta.Хост — guess a more specific
+  // icon from it (phone, TV, smart plug, ...) and fall back to the generic
+  // type icon when nothing matches.
+  const hostname = typeof node.meta["Хост"] === "string" ? node.meta["Хост"] : null;
+  const guessed =
+    node.type === "client-wifi" || node.type === "client-wired" ? guessDeviceIcon(hostname) : null;
+  const icon = guessed ?? ICON[node.type] ?? "•";
   return (
     <div className={`node-box ${cls}`} onClick={onClick}>
-      <div>{ICON[node.type] ?? "•"} {node.label}</div>
+      <div>{icon} {node.label}</div>
       <div className="node-sub">{node.sub}</div>
     </div>
   );

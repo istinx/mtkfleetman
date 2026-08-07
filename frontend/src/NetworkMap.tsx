@@ -21,6 +21,7 @@ import {
   RouterSummary,
 } from "./api";
 import { ICON, NodeInfoModal } from "./TopologyTab";
+import { guessNeighborIcon } from "./deviceIcons";
 
 const NODE_WIDTH = 170;
 const NODE_HEIGHT = 56;
@@ -57,10 +58,14 @@ function RouterNodeView({ data }: NodeProps<NetworkMapRouterNode>) {
 }
 
 function UnknownNodeView({ data }: NodeProps<NetworkMapUnknownNode>) {
+  // Neighbor Discovery gives us identity/platform even for devices that
+  // aren't one of our managed routers — enough to guess router/AP/switch
+  // instead of showing a bare "?" for every non-fleet neighbor.
+  const icon = guessNeighborIcon(String(data.meta.Identity ?? "") || null, String(data.meta.Platform ?? "") || null);
   return (
     <div className="node-box" style={{ width: NODE_WIDTH, borderStyle: "dashed", opacity: 0.85 }}>
       <Handle type="target" position={Position.Top} style={{ visibility: "hidden" }} />
-      <div>{ICON.unknown} {data.label}</div>
+      <div>{icon} {data.label}</div>
       <div className="node-sub">{data.sub}</div>
       <Handle type="source" position={Position.Bottom} style={{ visibility: "hidden" }} />
     </div>
