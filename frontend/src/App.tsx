@@ -331,6 +331,7 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
   const [level, setLevel] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   async function refresh() {
     try {
@@ -360,9 +361,30 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
   }
 
   async function copyAll() {
-    await navigator.clipboard.writeText(formatForCopy());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopyError(null);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(formatForCopy());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API needs a secure context — silently unavailable on
+      // plain http:// (this app is deliberately deployed that way, see
+      // DEPLOY.md). Fall back to a file download instead of failing quietly.
+      setCopyError("Буфер обмена недоступен (обычно из-за работы по HTTP без HTTPS) — используйте «Скачать .txt».");
+    }
+  }
+
+  function downloadAll() {
+    const blob = new Blob([formatForCopy()], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mtkfleetman-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -371,7 +393,8 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
         <h2>Логи</h2>
         <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 14 }}>
           Ошибки и события бэкенда (api/worker) — в основном то, что происходит при опросе роутеров. Если что-то не
-          работает, скопируйте лог и пришлите для разбора.
+          работает, скачайте .txt и пришлите для разбора (копирование в буфер требует HTTPS — на обычном http:// не
+          сработает, отсюда и кнопка «Скачать»).
         </p>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <select value={service} onChange={(e) => setService(e.target.value)}>
@@ -389,8 +412,10 @@ function LogsPanel({ onClose }: { onClose: () => void }) {
           <button onClick={() => setAutoRefresh((v) => !v)} style={autoRefresh ? { borderColor: "var(--blue)" } : undefined}>
             Автообновление: {autoRefresh ? "вкл" : "выкл"}
           </button>
-          <button className="primary" onClick={copyAll}>{copied ? "Скопировано!" : "Скопировать всё"}</button>
+          <button onClick={copyAll}>{copied ? "Скопировано!" : "Скопировать всё"}</button>
+          <button className="primary" onClick={downloadAll}>Скачать .txt</button>
         </div>
+        {copyError && <p className="muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 10 }}>{copyError}</p>}
         {error && <div className="error-text">{error}</div>}
         {!logs && !error && <p className="muted">Загрузка…</p>}
         {logs && !logs.length && <p className="muted">Логов пока нет.</p>}
