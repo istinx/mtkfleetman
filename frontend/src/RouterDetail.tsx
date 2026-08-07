@@ -201,12 +201,12 @@ function heatColor(ratio: number): string {
   const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
   return `rgb(${mix(r0, r1)}, ${mix(g0, g1)}, ${mix(b0, b1)})`;
 }
-const REFRESH_OPTIONS: { label: string; ms: number }[] = [
-  { label: "Выкл", ms: 0 },
-  { label: "10с", ms: 10000 },
-  { label: "30с", ms: 30000 },
-  { label: "1мин", ms: 60000 },
-  { label: "5мин", ms: 300000 },
+const REFRESH_OPTIONS: { labelKey: string; ms: number }[] = [
+  { labelKey: "common.refreshOff", ms: 0 },
+  { labelKey: "common.refresh10s", ms: 10000 },
+  { labelKey: "common.refresh30s", ms: 30000 },
+  { labelKey: "common.refresh1m", ms: 60000 },
+  { labelKey: "common.refresh5m", ms: 300000 },
 ];
 
 function blockOrderKey(routerId: string) {
@@ -365,6 +365,7 @@ function IfaceTrafficCard({
   points: { time: string; rx_bps: number; tx_bps: number }[];
   color: string;
 }) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
   const unit = pickTrafficUnit(points);
@@ -404,10 +405,10 @@ function IfaceTrafficCard({
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
         <strong style={{ fontSize: 13 }}>{name}</strong>
-        {down && <span className="badge down blink">отвал</span>}
+        {down && <span className="badge down blink">{t("monitoring.statusDown")}</span>}
       </div>
       <div className="muted mono" style={{ fontSize: 11, marginBottom: 8 }}>
-        {ip ?? "IP не назначен"}
+        {ip ?? t("monitoring.ipNotAssigned")}
         {latest && (
           <span>
             {" "}· Rx {formatRate(latest.rx_bps, unit)} · Tx {formatRate(latest.tx_bps, unit)}
@@ -422,6 +423,7 @@ function IfaceTrafficCard({
 }
 
 function MonitoringTab({ router }: { router: RouterSummary }) {
+  const { t } = useTranslation();
   const [hours, setHoursState] = useState(() => loadNumberPref(HOURS_KEY, 24));
   const [refreshMs, setRefreshMsState] = useState(() => loadNumberPref(REFRESH_KEY, 30000));
   const [tick, setTick] = useState(0);
@@ -467,7 +469,7 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
     let cancelled = false;
     getLiveInterfaces(router.id)
       .then((d) => !cancelled && setLiveIfaces(d))
-      .catch(() => !cancelled && setLiveError("Не удалось получить список интерфейсов с роутера."));
+      .catch(() => !cancelled && setLiveError(t("monitoring.ifacesLoadError")));
     return () => {
       cancelled = true;
     };
@@ -477,7 +479,7 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
     let cancelled = false;
     getWatchedInterfaces(router.id)
       .then((names) => !cancelled && setWatched(new Set(names)))
-      .catch(() => !cancelled && setWatchedError("Не удалось загрузить список наблюдаемых интерфейсов."));
+      .catch(() => !cancelled && setWatchedError(t("monitoring.watchedLoadError")));
     return () => {
       cancelled = true;
     };
@@ -556,7 +558,7 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
         setIfaceSeries(byIface);
         setSeriesError(null);
       })
-      .catch(() => !cancelled && setSeriesError("Не удалось загрузить историю трафика."));
+      .catch(() => !cancelled && setSeriesError(t("monitoring.trafficHistoryError")));
     return () => {
       cancelled = true;
     };
@@ -599,15 +601,15 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
         <div style={{ display: "flex", gap: 6 }}>
           {[1, 24, 168].map((h) => (
             <button key={h} onClick={() => setHours(h)} style={hours === h ? { borderColor: "var(--blue)" } : undefined}>
-              {h === 1 ? "1ч" : h === 24 ? "24ч" : "7д"}
+              {h === 1 ? t("common.h1") : h === 24 ? t("common.h24") : t("common.d7")}
             </button>
           ))}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="muted" style={{ fontSize: 12 }}>Автообновление:</span>
+          <span className="muted" style={{ fontSize: 12 }}>{t("common.autoRefresh")}</span>
           {REFRESH_OPTIONS.map((o) => (
             <button key={o.ms} onClick={() => setRefreshMs(o.ms)} style={refreshMs === o.ms ? { borderColor: "var(--blue)" } : undefined}>
-              {o.label}
+              {t(o.labelKey)}
             </button>
           ))}
         </div>
@@ -615,19 +617,19 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pickerOpen ? 10 : 20 }}>
         <span className="muted" style={{ fontSize: 12 }}>
-          Наблюдаемые интерфейсы {watched.size ? `(${watched.size} выбрано)` : ""}
+          {t("monitoring.watchedInterfaces")} {watched.size ? t("monitoring.selected", { count: watched.size }) : ""}
         </span>
-        <button onClick={() => setPickerOpen((v) => !v)}>{pickerOpen ? "Свернуть" : "Выбрать интерфейсы"}</button>
+        <button onClick={() => setPickerOpen((v) => !v)}>{pickerOpen ? t("monitoring.collapse") : t("monitoring.selectInterfaces")}</button>
       </div>
       {pickerOpen && (
         <>
           {watchedError && <ErrorNote msg={watchedError} />}
           {liveError && <ErrorNote msg={liveError} />}
-          {!liveIfaces && !liveError && <ErrorNote msg="Загрузка интерфейсов…" />}
+          {!liveIfaces && !liveError && <ErrorNote msg={t("monitoring.ifacesLoading")} />}
           {liveIfaces && (
             <table style={{ marginBottom: 20 }}>
               <thead>
-                <tr><th style={{ width: 30 }}></th><th>Интерфейс</th><th>Статус</th><th>Rx bps</th><th>Tx bps</th></tr>
+                <tr><th style={{ width: 30 }}></th><th>{t("monitoring.colInterface")}</th><th>{t("monitoring.colStatus")}</th><th>{t("monitoring.colRxBps")}</th><th>{t("monitoring.colTxBps")}</th></tr>
               </thead>
               <tbody>
                 {liveIfaces.map((i, idx) => {
@@ -641,11 +643,11 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
                       <td>{i.name}</td>
                       <td>
                         <span className={`badge ${i.disabled === "true" ? "unknown" : i.running === "true" ? "up" : "down"} ${down ? "blink" : ""}`}>
-                          {i.disabled === "true" ? "выключен" : i.running === "true" ? "работает" : "отвал"}
+                          {i.disabled === "true" ? t("monitoring.statusDisabled") : i.running === "true" ? t("monitoring.statusUp") : t("monitoring.statusDown")}
                         </span>
                       </td>
-                      <td className="mono">{rates ? rates.rx_bps.toLocaleString() : "— (ждём опроса)"}</td>
-                      <td className="mono">{rates ? rates.tx_bps.toLocaleString() : "— (ждём опроса)"}</td>
+                      <td className="mono">{rates ? rates.rx_bps.toLocaleString() : t("monitoring.waitingPoll")}</td>
+                      <td className="mono">{rates ? rates.tx_bps.toLocaleString() : t("monitoring.waitingPoll")}</td>
                     </tr>
                   );
                 })}
@@ -657,21 +659,21 @@ function MonitoringTab({ router }: { router: RouterSummary }) {
 
       {seriesError && <ErrorNote msg={seriesError} />}
       <div className="muted" style={{ marginBottom: 10, fontSize: 12 }}>
-        Блоки можно перетаскивать мышью — порядок сохраняется для этого роутера.
+        {t("monitoring.dragHint")}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
         {blocks.map((id) => {
           if (id === "cpu") {
             return (
               <DraggableCard key="cpu" id="cpu" onDrop={moveBlock}>
-                <MiniLineChart title="CPU" points={cpuPoints} color="#1baf7a" max={100} suffix="%" />
+                <MiniLineChart title={t("common.cpu")} points={cpuPoints} color="#1baf7a" max={100} suffix="%" />
               </DraggableCard>
             );
           }
           if (id === "mem") {
             return (
               <DraggableCard key="mem" id="mem" onDrop={moveBlock}>
-                <MiniLineChart title="Память" points={memPoints} color="#4a3aa7" max={100} suffix="%" />
+                <MiniLineChart title={t("common.memory")} points={memPoints} color="#4a3aa7" max={100} suffix="%" />
               </DraggableCard>
             );
           }
