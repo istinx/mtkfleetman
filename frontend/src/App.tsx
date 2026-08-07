@@ -17,6 +17,7 @@ import {
 } from "./api";
 import RouterDetail, { StatusBadge } from "./RouterDetail";
 import NetworkMap from "./NetworkMap";
+import LoginArt from "./LoginArt";
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [username, setUsername] = useState("");
@@ -40,14 +41,17 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
   return (
     <div className="login-screen">
-      <form className="login-card" onSubmit={submit}>
-        <h1>MikroTik Fleet Manager</h1>
-        <p>Войдите, чтобы увидеть парк роутеров</p>
-        <input type="text" placeholder="логин" value={username} onChange={(e) => setUsername(e.target.value)} required />
-        <input type="password" placeholder="пароль" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <button className="primary" type="submit" disabled={busy}>{busy ? "Входим…" : "Войти"}</button>
-        {error && <div className="error-text">{error}</div>}
-      </form>
+      <div className="login-card">
+        <div className="login-art"><LoginArt /></div>
+        <form onSubmit={submit}>
+          <h1>MikroTik Fleet Manager</h1>
+          <p>Войдите, чтобы увидеть парк роутеров</p>
+          <input type="text" placeholder="логин" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <input type="password" placeholder="пароль" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <button className="primary" type="submit" disabled={busy}>{busy ? "Входим…" : "Войти"}</button>
+          {error && <div className="error-text">{error}</div>}
+        </form>
+      </div>
     </div>
   );
 }
