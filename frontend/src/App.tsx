@@ -542,17 +542,28 @@ function Dashboard() {
   const [showLogs, setShowLogs] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"fleet" | "map">("fleet");
 
   async function refresh() {
-    const data = await listRouters();
-    setRouters(data);
-    setLoading(false);
-    if (selected) {
-      const updated = data.find((r) => r.id === selected.id);
-      if (updated) setSelected(updated);
+    try {
+      const data = await listRouters();
+      setRouters(data);
+      setLoadError(null);
+      if (selected) {
+        const updated = data.find((r) => r.id === selected.id);
+        if (updated) setSelected(updated);
+      }
+    } catch {
+      // Surface this instead of failing silently — a stale/failed schema
+      // (e.g. a missing migration) used to leave the list stuck on
+      // "Загрузка…" forever with zero feedback, including right after a
+      // router was actually added successfully.
+      setLoadError("Не удалось загрузить список роутеров. Проверьте логи api (docker compose logs api) — часто это несделанная миграция БД.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -626,7 +637,8 @@ function Dashboard() {
       </div>
       <div className="main">
         {loading && <p className="muted">Загрузка…</p>}
-        {!loading && !routers.length && <p className="muted">Роутеров пока нет — добавьте первый.</p>}
+        {loadError && <div className="error-text" style={{ marginBottom: 16 }}>{loadError}</div>}
+        {!loading && !loadError && !routers.length && <p className="muted">Роутеров пока нет — добавьте первый.</p>}
         {viewMode === "map" && !loading && !!routers.length && (
           <NetworkMap routers={routers} onSelectRouter={setSelected} />
         )}
